@@ -22,6 +22,20 @@ const uploadVitalSign = async (req, res, next) => {
   }
 };
 
+// 获取我的体征数据（患者端）
+const getMyVitals = async (req, res, next) => {
+  try {
+    const { hours } = req.query;
+    const result = await vitalSignService.getMyVitals(req.userId, parseInt(hours) || 24);
+    res.json({
+      code: 200,
+      data: result
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // 获取实时数据
 const getRealtimeData = async (req, res, next) => {
   try {
@@ -74,6 +88,7 @@ const getTrendData = async (req, res, next) => {
 
 module.exports = {
   uploadVitalSign,
+  getMyVitals,
   getRealtimeData,
   getHistoryData,
   getTrendData

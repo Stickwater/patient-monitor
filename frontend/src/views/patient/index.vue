@@ -17,47 +17,49 @@
       </div>
     </div>
 
-    <el-table :data="patients" stripe style="width: 100%">
-      <el-table-column prop="patient_id" label="患者ID" width="120" />
-      <el-table-column prop="name" label="姓名" width="100" />
-      <el-table-column prop="gender" label="性别" width="80">
-        <template #default="{ row }">
-          {{ row.gender === 'M' ? '男' : '女' }}
-        </template>
-      </el-table-column>
-      <el-table-column prop="age" label="年龄" width="80" />
-      <el-table-column prop="bed_number" label="床位号" width="120" />
-      <el-table-column prop="attendingDoctor.real_name" label="主治医生" width="120" />
-      <el-table-column prop="admission_date" label="入院日期" width="120">
-        <template #default="{ row }">
-          {{ formatDate(row.admission_date) }}
-        </template>
-      </el-table-column>
-      <el-table-column prop="status" label="状态" width="100">
-        <template #default="{ row }">
-          <el-tag :type="row.status === 'admitted' ? 'success' : 'info'" size="small">
-            {{ row.status === 'admitted' ? '在院' : '出院' }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="200" fixed="right">
-        <template #default="{ row }">
-          <el-button type="primary" link size="small" @click="handleView(row)">查看</el-button>
-          <el-button type="primary" link size="small" @click="handleEdit(row)">编辑</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+    <div class="table-card">
+      <el-table :data="patients" stripe>
+        <el-table-column prop="patient_id" label="患者ID" width="120" />
+        <el-table-column prop="name" label="姓名" width="100" />
+        <el-table-column prop="gender" label="性别" width="80">
+          <template #default="{ row }">
+            {{ row.gender === 'M' ? '男' : '女' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="age" label="年龄" width="80" />
+        <el-table-column prop="bed_number" label="床位号" width="120" />
+        <el-table-column prop="attendingDoctor.real_name" label="主治医生" width="120" />
+        <el-table-column prop="admission_date" label="入院日期" width="120">
+          <template #default="{ row }">
+            {{ formatDate(row.admission_date) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.status === 'admitted' ? 'success' : 'info'" size="small">
+              {{ row.status === 'admitted' ? '在院' : '出院' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="200" fixed="right">
+          <template #default="{ row }">
+            <el-button type="primary" link size="small" @click="handleView(row)">查看</el-button>
+            <el-button type="primary" link size="small" @click="handleEdit(row)">编辑</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
 
-    <el-pagination
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      style="margin-top: 20px"
-      @size-change="loadPatients"
-      @current-change="loadPatients"
-    />
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="size"
+        :total="total"
+        :page-sizes="[10, 20, 50]"
+        layout="total, sizes, prev, pager, next"
+        style="margin-top: var(--space-5)"
+        @size-change="loadPatients"
+        @current-change="loadPatients"
+      />
+    </div>
 
     <!-- 新增/编辑弹窗 -->
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="500px">
@@ -83,7 +85,7 @@
               v-for="doc in doctors" 
               :key="doc.user_id" 
               :label="doc.real_name" 
-              :value="doc.user_id" 
+              :value="doc.user_id"
             />
           </el-select>
         </el-form-item>
@@ -167,7 +169,6 @@ const handleEdit = (row) => {
 }
 
 const handleView = (row) => {
-  // TODO: 跳转到患者详情页
   ElMessage.info('查看详情功能开发中')
 }
 
@@ -204,7 +205,6 @@ const formatDate = (date) => {
 
 onMounted(() => {
   loadPatients()
-  // TODO: 加载医生列表
 })
 </script>
 
@@ -215,10 +215,17 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: var(--space-5);
 }
 
-.page-header h2 { margin: 0; }
+.page-header h2 { margin: 0; font-size: var(--text-xl); font-weight: 600; }
 
-.header-actions { display: flex; gap: 10px; }
+.header-actions { display: flex; gap: var(--space-3); }
+
+.table-card {
+  background: var(--bg-white);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
 </style>

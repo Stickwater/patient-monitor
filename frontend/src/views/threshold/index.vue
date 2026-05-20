@@ -5,7 +5,7 @@
     </div>
 
     <!-- 患者选择 -->
-    <el-card class="filter-card">
+    <div class="filter-card">
       <el-form :inline="true">
         <el-form-item label="选择患者">
           <el-select v-model="selectedPatientId" placeholder="请选择患者" style="width: 300px" @change="loadThreshold">
@@ -18,18 +18,16 @@
           </el-select>
         </el-form-item>
       </el-form>
-    </el-card>
+    </div>
 
     <div v-if="selectedPatientId" class="threshold-form">
-      <el-card>
-        <template #header>
-          <div class="card-header">
-            <span>阈值配置</span>
-            <el-tag v-if="validationResult && !validationResult.isValid" type="danger">
-              存在不合理的阈值设置
-            </el-tag>
-          </div>
-        </template>
+      <div class="form-card">
+        <div class="card-header">
+          <span>阈值配置</span>
+          <el-tag v-if="validationResult && !validationResult.isValid" type="danger">
+            存在不合理的阈值设置
+          </el-tag>
+        </div>
 
         <el-form ref="formRef" :model="form" label-width="120px">
           <el-divider content-position="left">脉搏（次/分钟）</el-divider>
@@ -46,7 +44,7 @@
             </el-col>
           </el-row>
           <div class="validation-tip" :class="{ error: form.pulseMin >= form.pulseMax }">
-            <el-icon v-if="form.pulseMin >= form.pulseMax" color="#ff4d4f"><CircleClose /></el-icon>
+            <el-icon v-if="form.pulseMin >= form.pulseMax"><CircleClose /></el-icon>
             <span>{{ getValidationText('pulse') }}</span>
           </div>
 
@@ -64,7 +62,7 @@
             </el-col>
           </el-row>
           <div class="validation-tip" :class="{ error: form.temperatureMin >= form.temperatureMax }">
-            <el-icon v-if="form.temperatureMin >= form.temperatureMax" color="#ff4d4f"><CircleClose /></el-icon>
+            <el-icon v-if="form.temperatureMin >= form.temperatureMax"><CircleClose /></el-icon>
             <span>{{ getValidationText('temperature') }}</span>
           </div>
 
@@ -82,7 +80,7 @@
             </el-col>
           </el-row>
           <div class="validation-tip" :class="{ error: form.bpSystolicMin >= form.bpSystolicMax }">
-            <el-icon v-if="form.bpSystolicMin >= form.bpSystolicMax" color="#ff4d4f"><CircleClose /></el-icon>
+            <el-icon v-if="form.bpSystolicMin >= form.bpSystolicMax"><CircleClose /></el-icon>
             <span>{{ getValidationText('bpSystolic') }}</span>
           </div>
 
@@ -100,7 +98,7 @@
             </el-col>
           </el-row>
           <div class="validation-tip" :class="{ error: form.bpDiastolicMin >= form.bpDiastolicMax }">
-            <el-icon v-if="form.bpDiastolicMin >= form.bpDiastolicMax" color="#ff4d4f"><CircleClose /></el-icon>
+            <el-icon v-if="form.bpDiastolicMin >= form.bpDiastolicMax"><CircleClose /></el-icon>
             <span>{{ getValidationText('bpDiastolic') }}</span>
           </div>
 
@@ -118,20 +116,20 @@
             <el-button type="primary" :loading="saving" @click="submitForm">保存配置</el-button>
           </el-form-item>
         </el-form>
-      </el-card>
+      </div>
 
       <!-- 医学标准参考 -->
-      <el-card class="reference-card">
-        <template #header>
+      <div class="reference-card">
+        <div class="card-header">
           <span>医学标准参考</span>
-        </template>
+        </div>
         <el-descriptions :column="1" border>
           <el-descriptions-item label="脉搏（成人）">60-100 次/分钟</el-descriptions-item>
           <el-descriptions-item label="体温（成人）">36.0-37.3 °C</el-descriptions-item>
           <el-descriptions-item label="收缩压（成人）">90-140 mmHg</el-descriptions-item>
           <el-descriptions-item label="舒张压（成人）">60-90 mmHg</el-descriptions-item>
         </el-descriptions>
-      </el-card>
+      </div>
     </div>
 
     <el-empty v-else description="请选择患者进行阈值配置" />
@@ -142,12 +140,9 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { getPatients } from '@/api/patient'
 import { getThreshold, setThreshold } from '@/api/threshold'
-import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
 
 const CircleClose = 'CircleClose'
-
-const userStore = useUserStore()
 
 const patients = ref([])
 const selectedPatientId = ref('')
@@ -215,7 +210,6 @@ const loadThreshold = async () => {
       })
     }
   } catch (error) {
-    // 没有阈值配置，使用默认值
     form.pulseMin = 60
     form.pulseMax = 100
     form.temperatureMin = 36.0
@@ -268,37 +262,57 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: var(--space-5);
 }
 
-.page-header h2 { margin: 0; }
+.page-header h2 { margin: 0; font-size: var(--text-xl); font-weight: 600; }
 
-.filter-card { margin-bottom: 20px; }
+.filter-card {
+  background: var(--bg-white);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  margin-bottom: var(--space-5);
+}
 
 .threshold-form {
   display: grid;
   grid-template-columns: 2fr 1fr;
-  gap: 20px;
+  gap: var(--space-5);
+}
+
+.form-card,
+.reference-card {
+  background: var(--bg-white);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+}
+
+.reference-card {
+  height: fit-content;
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: var(--space-5);
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .validation-tip {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: -10px 0 20px 120px;
-  font-size: 13px;
-  color: #52c41a;
+  gap: var(--space-2);
+  margin: calc(var(--space-2) * -1) 0 var(--space-5) 120px;
+  font-size: var(--text-sm);
+  color: var(--color-success);
 }
 
 .validation-tip.error {
-  color: #ff4d4f;
+  color: var(--color-error);
 }
-
-.reference-card { height: fit-content; }
 </style>

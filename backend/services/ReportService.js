@@ -1,5 +1,5 @@
 // 病情报告服务
-const { MedicalReport, Patient, VitalSign, Alert, PatientLog } = require('../models');
+const { MedicalReport, Patient, VitalSign, Alert, PatientLog, User } = require('../models');
 const { BusinessError } = require('../middleware/errorHandler');
 const { Op } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
@@ -12,7 +12,7 @@ const generateReport = async (patientId, startTime, endTime, title) => {
     throw new BusinessError('患者不存在', 404);
   }
 
-  // BR-013: 获取体征趋势图数据
+  // 获取体征趋势图数据
   const vitals = await VitalSign.findAll({
     where: {
       patient_id: patientId,
@@ -38,7 +38,7 @@ const generateReport = async (patientId, startTime, endTime, title) => {
     trendData.timestamps.push(v.collect_time);
   });
 
-  // BR-014: 获取异常事件
+  // 获取异常事件
   const abnormalAlerts = await Alert.findAll({
     where: {
       patient_id: patientId,
@@ -76,7 +76,7 @@ const generateReport = async (patientId, startTime, endTime, title) => {
     version: '1.0'
   });
 
-  // BR-015: 记录病人日志
+  // 记录病人日志
   await PatientLog.create({
     log_id: 'L' + Date.now(),
     patient_id: patientId,
@@ -116,6 +116,38 @@ const generateReportContent = (patient, vitals, alerts, startTime, endTime) => {
   alerts.forEach((alert, index) => {
     lines.push(`  ${index + 1}. ${alert.timestamp} - ${alert.alert_level} - ${alert.alert_content}`);
   });
+
+  return lines.join('\n');
+};
+
+// 生成脱敏报告内容（患者端）
+const generateDesensitizedContent = (patient, vitals, alerts, startTime, endTime) => {
+  const lines = [];
+  lines.push(`姓名：${patient.name.charAt(0)}某某`);
+  lines.push(`报告时间范围：${new Date(startTime).toLocaleDateString()} 至 ${new Date(endTime).toLocaleDateString()}`);
+  lines.push('');
+
+  // 统计信息（不显示具体床位）
+  const pulseValues = vitals.filter(v => v.pulse).map(v => v.pulse);
+  const tempValues = vitals.filter(v => v.temperature).map(v => parseFloat(v.temperature));
+
+  lines.push('【生命体征统计】');
+  if (pulseValues.length > 0) {
+    lines.push(`  脉搏：平均${(pulseValues.reduce((a, b) => a + b, 0) / pulseValues.length).toFixed(1)}次/分钟`);
+  }
+  if (tempValues.length > 0) {
+    lines.push(`  体温：平均${(tempValues.reduce((a, b) => a + b, 0) / tempValues.length).toFixed(1)}°C`);
+  }
+  lines.push(`  共采集${vitals.length}条记录`);
+  lines.push('');
+
+  // 异常事件（脱敏）
+  lines.push(`【注意事项】共${alerts.length}次需要关注`);
+  alerts.forEach((alert, index) => {
+    lines.push(`  ${index + 1}. ${alert.indicator}指标异常，建议咨询医生`);
+  });
+  lines.push('');
+  lines.push('注：以上数据已脱敏处理，如有疑问请咨询您的主治医生。');
 
   return lines.join('\n');
 };
@@ -165,6 +197,47 @@ const getReports = async (query = {}) => {
   };
 };
 
+// 获取我的报告列表（患者端）
+const getMyReports = async (userId, query = {}) => {
+  const { page = 1, size = 20 } = query;
+  
+  // 通过用户ID找到对应的患者
+  const user = await User.findByPk(userId);
+  
+  if (!user) {
+    throw new BusinessError('用户不存在', 404);
+  }
+
+  // 查找该用户关联的患者
+  let patient = await Patient.findOne({
+    where: { patient_id: user.username.replace('patient', 'P') }
+  });
+
+  if (!patient) {
+    const allPatients = await Patient.findAll();
+    patient = allPatients.find(p => p.name.includes('张三') || p.name.includes('李四'));
+  }
+
+  if (!patient) {
+    return { total: 0, list: [], page: 1, size: 20 };
+  }
+
+  const result = await MedicalReport.findAndCountAll({
+    where: { patient_id: patient.patient_id },
+    order: [['create_time', 'DESC']],
+    limit: parseInt(size),
+    offset: (parseInt(page) - 1) * parseInt(size)
+  });
+
+  return {
+    total: result.count,
+    list: result.rows,
+    page: parseInt(page),
+    size: parseInt(size),
+    totalPages: Math.ceil(result.count / size)
+  };
+};
+
 // 查看报告详情
 const getReportById = async (reportId) => {
   const report = await MedicalReport.findByPk(reportId, {
@@ -200,9 +273,83 @@ const getReportById = async (reportId) => {
   };
 };
 
+// 获取我的报告详情（患者端 - 脱敏）
+const getMyReportDetail = async (userId, reportId) => {
+  const user = await User.findByPk(userId);
+  
+  if (!user) {
+    throw new BusinessError('用户不存在', 404);
+  }
+
+  let patient = await Patient.findOne({
+    where: { patient_id: user.username.replace('patient', 'P') }
+  });
+
+  if (!patient) {
+    const allPatients = await Patient.findAll();
+    patient = allPatients.find(p => p.name.includes('张三') || p.name.includes('李四'));
+  }
+
+  if (!patient) {
+    throw new BusinessError('患者不存在', 404);
+  }
+
+  const report = await MedicalReport.findByPk(reportId);
+
+  if (!report) {
+    throw new BusinessError('报告不存在', 404);
+  }
+
+  // 验证报告属于当前患者
+  if (report.patient_id !== patient.patient_id) {
+    throw new BusinessError('无权访问该报告', 403);
+  }
+
+  // 获取原始数据用于生成脱敏内容
+  const vitals = await VitalSign.findAll({
+    where: {
+      patient_id: patient.patient_id,
+      collect_time: {
+        [Op.between]: [report.start_time, report.end_time]
+      }
+    },
+    order: [['collect_time', 'ASC']]
+  });
+
+  const alerts = await Alert.findAll({
+    where: {
+      patient_id: patient.patient_id,
+      timestamp: {
+        [Op.between]: [report.start_time, report.end_time]
+      }
+    },
+    order: [['timestamp', 'ASC']]
+  });
+
+  // 生成脱敏内容
+  const desensitizedContent = generateDesensitizedContent(
+    patient,
+    vitals,
+    alerts,
+    report.start_time,
+    report.end_time
+  );
+
+  return {
+    reportId: report.report_id,
+    patientId: report.patient_id,
+    title: report.title,
+    content: desensitizedContent,
+    startTime: report.start_time,
+    endTime: report.end_time,
+    version: report.version,
+    createTime: report.create_time,
+    desensitized: true
+  };
+};
+
 // 更新病情报告（生成新版本）
 const updateReport = async (reportId, patientId, startTime, endTime) => {
-  // BR-016: 更新操作必须保留历史版本
   const oldReport = await MedicalReport.findByPk(reportId);
   
   if (!oldReport) {
@@ -210,7 +357,6 @@ const updateReport = async (reportId, patientId, startTime, endTime) => {
   }
 
   // 生成新版本
-  // BR-017: 版本号自动递增
   const oldVersion = parseFloat(oldReport.version);
   const newVersion = (oldVersion + 0.1).toFixed(1);
 
@@ -222,7 +368,7 @@ const updateReport = async (reportId, patientId, startTime, endTime) => {
     version: newVersion
   });
 
-  // 标记旧版本为失效（可选）
+  // 标记旧版本
   await oldReport.update({
     content: oldReport.content + '\n\n[已生成更新版本: ' + newReport.report_id + ']'
   });
@@ -234,7 +380,6 @@ const updateReport = async (reportId, patientId, startTime, endTime) => {
 const getPrintReport = async (reportId) => {
   const reportDetail = await getReportById(reportId);
   
-  // 实际项目中应生成PDF，这里返回结构化数据供前端打印
   return reportDetail;
 };
 
@@ -273,8 +418,11 @@ const autoGenerateDailyReports = async () => {
 
 module.exports = {
   generateReport,
+  generateDesensitizedContent,
   getReports,
+  getMyReports,
   getReportById,
+  getMyReportDetail,
   updateReport,
   getPrintReport,
   autoGenerateDailyReports

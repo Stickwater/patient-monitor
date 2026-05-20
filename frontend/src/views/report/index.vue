@@ -8,7 +8,7 @@
     </div>
 
     <!-- 搜索筛选 -->
-    <el-card class="filter-card">
+    <div class="filter-card">
       <el-form :inline="true" :model="filterForm">
         <el-form-item label="患者">
           <el-select v-model="filterForm.patientId" placeholder="请选择" clearable style="width: 200px">
@@ -35,52 +35,54 @@
           <el-button @click="resetFilter">重置</el-button>
         </el-form-item>
       </el-form>
-    </el-card>
+    </div>
 
     <!-- 报告列表 -->
-    <el-table :data="reports" stripe style="width: 100%">
-      <el-table-column prop="report_id" label="报告ID" width="150" />
-      <el-table-column prop="patient.name" label="患者姓名" width="120" />
-      <el-table-column prop="bed_number" label="床位号" width="120">
-        <template #default="{ row }">
-          {{ row.patient?.bed_number }}
-        </template>
-      </el-table-column>
-      <el-table-column prop="title" label="报告标题" min-width="200" />
-      <el-table-column prop="start_time" label="开始时间" width="160">
-        <template #default="{ row }">
-          {{ formatDateTime(row.start_time) }}
-        </template>
-      </el-table-column>
-      <el-table-column prop="end_time" label="结束时间" width="160">
-        <template #default="{ row }">
-          {{ formatDateTime(row.end_time) }}
-        </template>
-      </el-table-column>
-      <el-table-column prop="version" label="版本" width="80" />
-      <el-table-column prop="create_time" label="生成时间" width="160">
-        <template #default="{ row }">
-          {{ formatDateTime(row.create_time) }}
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="200" fixed="right">
-        <template #default="{ row }">
-          <el-button type="primary" link size="small" @click="viewReport(row)">查看</el-button>
-          <el-button type="primary" link size="small" @click="printReport(row)">打印</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+    <div class="table-card">
+      <el-table :data="reports" stripe>
+        <el-table-column prop="report_id" label="报告ID" width="150" />
+        <el-table-column prop="patient.name" label="患者姓名" width="120" />
+        <el-table-column prop="bed_number" label="床位号" width="120">
+          <template #default="{ row }">
+            {{ row.patient?.bed_number }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="title" label="报告标题" min-width="200" />
+        <el-table-column prop="start_time" label="开始时间" width="160">
+          <template #default="{ row }">
+            {{ formatDateTime(row.start_time) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="end_time" label="结束时间" width="160">
+          <template #default="{ row }">
+            {{ formatDateTime(row.end_time) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="version" label="版本" width="80" />
+        <el-table-column prop="create_time" label="生成时间" width="160">
+          <template #default="{ row }">
+            {{ formatDateTime(row.create_time) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="200" fixed="right">
+          <template #default="{ row }">
+            <el-button type="primary" link size="small" @click="viewReport(row)">查看</el-button>
+            <el-button type="primary" link size="small" @click="printReport(row)">打印</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
 
-    <el-pagination
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      style="margin-top: 20px"
-      @size-change="loadReports"
-      @current-change="loadReports"
-    />
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="size"
+        :total="total"
+        :page-sizes="[10, 20, 50]"
+        layout="total, sizes, prev, pager, next"
+        style="margin-top: var(--space-5)"
+        @size-change="loadReports"
+        @current-change="loadReports"
+      />
+    </div>
 
     <!-- 生成报告弹窗 -->
     <el-dialog v-model="generateVisible" title="生成病情报告" width="500px">
@@ -119,7 +121,7 @@
     <!-- 报告详情弹窗 -->
     <el-dialog v-model="detailVisible" title="报告详情" width="900px">
       <div v-if="currentReport" class="report-detail">
-        <el-descriptions :column="2" border style="margin-bottom: 20px">
+        <el-descriptions :column="2" border style="margin-bottom: var(--space-5)">
           <el-descriptions-item label="报告标题" :span="2">{{ currentReport.title }}</el-descriptions-item>
           <el-descriptions-item label="患者姓名">{{ currentReport.patientName }}</el-descriptions-item>
           <el-descriptions-item label="床位号">{{ currentReport.bedNumber }}</el-descriptions-item>
@@ -132,7 +134,7 @@
         <h4>体征趋势图</h4>
         <div ref="chartRef" class="chart-container"></div>
 
-        <h4 style="margin-top: 20px">异常事件</h4>
+        <h4 style="margin-top: var(--space-5)">异常事件</h4>
         <el-table v-if="currentReport.abnormalEvents?.length" :data="currentReport.abnormalEvents" stripe>
           <el-table-column prop="time" label="时间" width="160">
             <template #default="{ row }">
@@ -153,7 +155,7 @@
         </el-table>
         <el-empty v-else description="无异常事件" />
 
-        <h4 style="margin-top: 20px">报告内容</h4>
+        <h4 style="margin-top: var(--space-5)">报告内容</h4>
         <pre class="report-content">{{ currentReport.content }}</pre>
       </div>
     </el-dialog>
@@ -278,6 +280,7 @@ const renderChart = (trendData) => {
   chart.setOption({
     tooltip: { trigger: 'axis' },
     legend: { data: ['脉搏', '体温'] },
+    grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
     xAxis: { 
       type: 'category', 
       data: trendData?.timestamps?.map(t => new Date(t).toLocaleTimeString()) || [] 
@@ -315,21 +318,41 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: var(--space-5);
 }
 
-.page-header h2 { margin: 0; }
+.page-header h2 { margin: 0; font-size: var(--text-xl); font-weight: 600; }
 
-.filter-card { margin-bottom: 20px; }
+.filter-card {
+  background: var(--bg-white);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  margin-bottom: var(--space-5);
+}
+
+.table-card {
+  background: var(--bg-white);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
 
 .chart-container { width: 100%; height: 300px; }
 
 .report-content {
-  background: #f5f7fa;
-  padding: 16px;
-  border-radius: 4px;
+  background: var(--bg-light);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
   white-space: pre-wrap;
-  font-size: 14px;
+  font-size: var(--text-sm);
   line-height: 1.8;
+}
+
+.report-detail h4 {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 var(--space-3) 0;
 }
 </style>

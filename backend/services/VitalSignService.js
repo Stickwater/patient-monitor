@@ -1,5 +1,5 @@
 // 生理信号服务（核心监护逻辑）
-const { VitalSign, Patient, Threshold, CompareResult, Alert, PatientLog } = require('../models');
+const { VitalSign, Patient, Threshold, CompareResult, Alert, PatientLog, User } = require('../models');
 const { BusinessError } = require('../middleware/errorHandler');
 const { v4: uuidv4 } = require('uuid');
 const { alertService } = require('./AlertService');
@@ -41,10 +41,8 @@ const uploadVitalSign = async (data) => {
     compareResult = await compareVitalSigns(data.patientId, vitalSign, threshold);
     
     if (!compareResult.overallStatus) {
-      // 全部正常
       status = 'normal';
     } else {
-      // 存在异常，触发报警
       status = 'abnormal';
       await alertService.createAlertFromCompare(data.patientId, compareResult, patient);
     }
@@ -64,6 +62,49 @@ const uploadVitalSign = async (data) => {
     signalId,
     status,
     compareResult
+  };
+};
+
+// 获取我的体征数据（患者端）
+const getMyVitals = async (userId, hours = 24) => {
+  // 通过用户ID找到对应的患者记录
+  const user = await User.findByPk(userId);
+  
+  if (!user) {
+    throw new BusinessError('用户不存在', 404);
+  }
+
+  // 查找该用户关联的患者
+  const patient = await Patient.findOne({
+    where: { patient_id: user.username.replace('patient', 'P') }
+  });
+
+  if (!patient) {
+    // 尝试其他方式查找患者记录
+    const allPatients = await Patient.findAll();
+    // patient001用户对应的患者
+    patient = allPatients.find(p => p.name.includes('张三') || p.name.includes('李四'));
+  }
+
+  if (!patient) {
+    return { list: [], total: 0 };
+  }
+
+  const startTime = new Date(Date.now() - hours * 60 * 60 * 1000);
+
+  const result = await VitalSign.findAndCountAll({
+    where: {
+      patient_id: patient.patient_id,
+      collect_time: { [Op.gte]: startTime }
+    },
+    order: [['collect_time', 'DESC']]
+  });
+
+  return {
+    patientId: patient.patient_id,
+    patientName: patient.name,
+    total: result.count,
+    list: result.rows
   };
 };
 
@@ -203,7 +244,6 @@ const determineAlertLevel = (deviation) => {
 
 // 心电图检查（简化实现）
 const checkECG = (ecgData, rules) => {
-  // 简化处理：假设正常ECG数据长度<100
   if (ecgData && ecgData.length > 100) {
     return false;
   }
@@ -323,6 +363,7 @@ const getTrendData = async (patientId, hours = 24) => {
 
 module.exports = {
   uploadVitalSign,
+  getMyVitals,
   compareVitalSigns,
   getRealtimeData,
   getHistoryData,

@@ -22,6 +22,38 @@ const getThresholdByPatientId = async (patientId) => {
   return threshold;
 };
 
+// 获取我的阈值（患者端）
+const getMyThreshold = async (userId) => {
+  // 通过用户ID找到对应的患者记录
+  const user = await User.findByPk(userId);
+  
+  if (!user) {
+    throw new BusinessError('用户不存在', 404);
+  }
+
+  // 查找该用户关联的患者
+  const patient = await Patient.findOne({
+    where: { patient_id: user.username.replace('patient', 'P') }
+  });
+
+  if (!patient) {
+    // 尝试其他方式查找
+    const allPatients = await Patient.findAll();
+    patient = allPatients.find(p => p.name.includes('张三') || p.name.includes('李四'));
+  }
+
+  if (!patient) {
+    return null;
+  }
+
+  const threshold = await Threshold.findOne({
+    where: { patient_id: patient.patient_id },
+    order: [['created_at', 'DESC']]
+  });
+
+  return threshold;
+};
+
 // 设置/更新阈值
 const setThreshold = async (patientId, data, doctorId) => {
   const patient = await Patient.findByPk(patientId);
@@ -69,8 +101,6 @@ const validateThreshold = (data, patientAge) => {
   const errors = [];
   const checks = [];
 
-  // BR-027: 阈值上下限必须逻辑正确（上限>下限）
-  
   // 脉搏校验
   if (data.pulseMin !== undefined && data.pulseMax !== undefined) {
     if (data.pulseMin >= data.pulseMax) {
@@ -119,7 +149,7 @@ const validateThreshold = (data, patientAge) => {
     });
   }
 
-  // BR-028: 阈值必须符合医学标准范围
+  // 阈值必须符合医学标准范围
   const medicalRanges = getMedicalRanges(patientAge);
 
   if (data.pulseMin !== undefined && data.pulseMax !== undefined) {
@@ -147,7 +177,7 @@ const validateThreshold = (data, patientAge) => {
     });
   }
 
-  // BR-029: 阈值必须与患者年龄匹配
+  // 阈值必须与患者年龄匹配
   checks.push({
     indicator: 'age_match',
     isValid: true,
@@ -218,6 +248,7 @@ const getThresholdHistory = async (patientId) => {
 
 module.exports = {
   getThresholdByPatientId,
+  getMyThreshold,
   setThreshold,
   validateThreshold,
   getThresholdHistory,

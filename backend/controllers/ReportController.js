@@ -73,10 +73,40 @@ const getPrintReport = async (req, res, next) => {
   }
 };
 
+// 获取我的报告列表（患者端）
+const getMyReports = async (req, res, next) => {
+  try {
+    const result = await reportService.getMyReports(req.userId, req.query);
+    res.json({
+      code: 200,
+      message: '获取成功',
+      data: result
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 获取我的报告详情（患者端）
+const getMyReportDetail = async (req, res, next) => {
+  try {
+    const report = await reportService.getMyReportDetail(req.userId, req.params.reportId);
+    res.json({
+      code: 200,
+      message: '获取成功',
+      data: report
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   generateReport,
   getReports,
   getReportById,
   updateReport,
-  getPrintReport
+  getPrintReport,
+  getMyReports,
+  getMyReportDetail
 };

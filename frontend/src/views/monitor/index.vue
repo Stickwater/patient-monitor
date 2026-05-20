@@ -15,8 +15,8 @@
     <!-- 报警统计 -->
     <div class="stats-row">
       <div class="stat-card">
-        <div class="stat-icon" style="background: #e6f7ff">
-          <el-icon size="24" color="#1890ff"><User /></el-icon>
+        <div class="stat-icon stat-icon-primary">
+          <el-icon size="24"><User /></el-icon>
         </div>
         <div class="stat-info">
           <div class="stat-value">{{ patients.length }}</div>
@@ -24,8 +24,8 @@
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon" style="background: #fff2f0">
-          <el-icon size="24" color="#ff4d4f"><Bell /></el-icon>
+        <div class="stat-icon stat-icon-danger">
+          <el-icon size="24"><Bell /></el-icon>
         </div>
         <div class="stat-info">
           <div class="stat-value text-danger">{{ alertStats.pendingCount || 0 }}</div>
@@ -33,8 +33,8 @@
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon" style="background: #f6ffed">
-          <el-icon size="24" color="#52c41a"><CircleCheck /></el-icon>
+        <div class="stat-icon stat-icon-success">
+          <el-icon size="24"><CircleCheck /></el-icon>
         </div>
         <div class="stat-info">
           <div class="stat-value text-success">{{ normalCount }}</div>
@@ -42,8 +42,8 @@
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon" style="background: #fffbe6">
-          <el-icon size="24" color="#faad14"><Warning /></el-icon>
+        <div class="stat-icon stat-icon-warning">
+          <el-icon size="24"><Warning /></el-icon>
         </div>
         <div class="stat-info">
           <div class="stat-value text-warning">{{ abnormalCount }}</div>
@@ -118,7 +118,7 @@
           <el-descriptions-item label="入院日期">{{ formatDate(currentPatient.admission_date) }}</el-descriptions-item>
         </el-descriptions>
 
-        <h4 style="margin: 20px 0 10px">体征趋势图（24小时）</h4>
+        <h4 style="margin: var(--space-5) 0 var(--space-3)">体征趋势图（24小时）</h4>
         <div ref="chartRef" class="chart-container"></div>
       </div>
     </el-dialog>
@@ -203,6 +203,7 @@ const loadTrendChart = async (patientId) => {
     chart.setOption({
       tooltip: { trigger: 'axis' },
       legend: { data: ['脉搏', '体温'] },
+      grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
       xAxis: { type: 'category', data: timestamps.map(t => new Date(t).toLocaleTimeString()) },
       yAxis: [
         { type: 'value', name: '脉搏', min: 40, max: 120 },
@@ -231,7 +232,7 @@ const formatDate = (date) => {
 onMounted(() => {
   loadPatients()
   loadAlertStats()
-  setInterval(loadPatients, 30000) // 30秒刷新
+  setInterval(loadPatients, 30000)
 })
 </script>
 
@@ -242,131 +243,136 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: var(--space-6);
 }
 
-.page-header h2 { margin: 0; }
+.page-header h2 { margin: 0; font-size: var(--text-xl); font-weight: 600; }
 
-.header-actions { display: flex; gap: 10px; }
+.header-actions { display: flex; gap: var(--space-3); }
 
 .stats-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
-  margin-bottom: 20px;
+  gap: var(--space-5);
+  margin-bottom: var(--space-6);
 }
 
 .stat-card {
-  background: #fff;
-  border-radius: 8px;
-  padding: 20px;
+  background: var(--bg-white);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
   display: flex;
   align-items: center;
-  gap: 16px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  gap: var(--space-4);
 }
 
 .stat-icon {
   width: 56px;
   height: 56px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
+.stat-icon-primary { background: var(--bg-light); color: var(--color-primary); }
+.stat-icon-danger { background: #fef2f2; color: var(--color-error); }
+.stat-icon-success { background: #f0fdf4; color: var(--color-success); }
+.stat-icon-warning { background: #fef3c7; color: var(--color-warning); }
+
 .stat-value {
-  font-size: 28px;
+  font-size: var(--text-2xl);
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
 }
 
-.text-danger { color: #ff4d4f; }
-.text-success { color: #52c41a; }
-.text-warning { color: #faad14; }
+.text-danger { color: var(--color-error); }
+.text-success { color: var(--color-success); }
+.text-warning { color: var(--color-warning); }
 
-.stat-label { color: #909399; font-size: 14px; margin-top: 4px; }
+.stat-label { color: var(--text-secondary); font-size: var(--text-sm); margin-top: var(--space-1); }
 
 .patient-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 20px;
+  gap: var(--space-5);
 }
 
 .patient-card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-  transition: all 0.3s;
+  background: var(--bg-white);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  transition: box-shadow 0.2s;
 }
 
 .patient-card:hover {
-  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+  box-shadow: var(--shadow-md);
 }
 
 .patient-card.has-alert {
-  border: 2px solid #ff4d4f;
+  border-color: var(--color-error);
   animation: alertPulse 2s infinite;
 }
 
 @keyframes alertPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(255,77,79,0.4); }
-  50% { box-shadow: 0 0 0 10px rgba(255,77,79,0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: var(--space-4);
 }
 
 .patient-info { display: flex; flex-direction: column; }
 
 .patient-name {
-  font-size: 18px;
+  font-size: var(--text-lg);
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .bed-number {
-  font-size: 13px;
-  color: #909399;
-  margin-top: 2px;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin-top: var(--space-1);
 }
 
 .vital-data {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  padding: 16px 0;
-  border-top: 1px solid #f0f0f0;
-  border-bottom: 1px solid #f0f0f0;
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .vital-item { text-align: center; }
 
-.vital-label { display: block; font-size: 13px; color: #909399; margin-bottom: 6px; }
+.vital-label { display: block; font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--space-2); }
 
 .vital-value {
-  font-size: 22px;
+  font-size: var(--text-xl);
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
 }
 
-.vital-value.abnormal { color: #ff4d4f; }
+.vital-value.abnormal { color: var(--color-error); }
 
-.vital-value .unit { font-size: 12px; font-weight: 400; color: #909399; }
+.vital-value .unit { font-size: var(--text-xs); font-weight: 400; color: var(--text-secondary); }
 
 .card-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 12px;
+  margin-top: var(--space-3);
 }
 
-.update-time { font-size: 12px; color: #909399; }
+.update-time { font-size: var(--text-xs); color: var(--text-secondary); }
 
 .chart-container { width: 100%; height: 300px; }
 </style>

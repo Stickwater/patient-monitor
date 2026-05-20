@@ -7,6 +7,9 @@ const { authenticate, authorize } = require('../middleware/auth');
 // POST /api/v1/vitals/upload - 上传生理信号（传感器调用）
 router.post('/upload', vitalSignController.uploadVitalSign);
 
+// GET /api/v1/vitals/my - 获取我的体征数据（患者端）
+router.get('/my', authenticate, authorize('patient'), vitalSignController.getMyVitals);
+
 // GET /api/v1/vitals/realtime/:patientId - 获取实时数据
 router.get('/realtime/:patientId', authenticate, vitalSignController.getRealtimeData);
 

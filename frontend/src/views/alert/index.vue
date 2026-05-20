@@ -16,77 +16,77 @@
 
     <!-- 报警统计卡片 -->
     <div class="stats-row">
-      <el-card v-for="stat in statsList" :key="stat.status" class="stat-card">
-        <div class="stat-content">
-          <span class="stat-value">{{ stat.count }}</span>
-          <span class="stat-label">{{ stat.status }}</span>
-        </div>
-      </el-card>
+      <div v-for="stat in statsList" :key="stat.status" class="stat-card">
+        <span class="stat-value">{{ stat.count }}</span>
+        <span class="stat-label">{{ stat.status }}</span>
+      </div>
     </div>
 
     <!-- 报警列表 -->
-    <el-table :data="alerts" stripe style="width: 100%">
-      <el-table-column prop="patientName" label="患者姓名" width="120" />
-      <el-table-column prop="bedNumber" label="床位号" width="120" />
-      <el-table-column prop="alertLevel" label="等级" width="100">
-        <template #default="{ row }">
-          <el-tag :type="getLevelType(row.alertLevel)" size="small">
-            {{ row.alertLevel }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="alertContent" label="报警内容" min-width="300" />
-      <el-table-column prop="timestamp" label="报警时间" width="180">
-        <template #default="{ row }">
-          {{ formatDateTime(row.timestamp) }}
-        </template>
-      </el-table-column>
-      <el-table-column prop="status" label="状态" width="100">
-        <template #default="{ row }">
-          <el-tag :type="getStatusType(row.status)" size="small">
-            {{ row.status }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="200" fixed="right">
-        <template #default="{ row }">
-          <el-button 
-            v-if="row.status === '待处理'" 
-            type="primary" 
-            size="small"
-            @click="handleConfirm(row)"
-          >
-            确认
-          </el-button>
-          <el-button 
-            v-if="row.status === '已确认'" 
-            type="success" 
-            size="small"
-            @click="handleResolve(row)"
-          >
-            解除
-          </el-button>
-          <el-button 
-            type="info" 
-            size="small"
-            @click="showDetail(row)"
-          >
-            详情
-          </el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+    <div class="table-card">
+      <el-table :data="alerts" stripe>
+        <el-table-column prop="patientName" label="患者姓名" width="120" />
+        <el-table-column prop="bedNumber" label="床位号" width="120" />
+        <el-table-column prop="alertLevel" label="等级" width="100">
+          <template #default="{ row }">
+            <el-tag :type="getLevelType(row.alertLevel)" size="small">
+              {{ row.alertLevel }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="alertContent" label="报警内容" min-width="300" />
+        <el-table-column prop="timestamp" label="报警时间" width="180">
+          <template #default="{ row }">
+            {{ formatDateTime(row.timestamp) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="getStatusType(row.status)" size="small">
+              {{ row.status }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="200" fixed="right">
+          <template #default="{ row }">
+            <el-button 
+              v-if="row.status === '待处理'" 
+              type="primary" 
+              size="small"
+              @click="handleConfirm(row)"
+            >
+              确认
+            </el-button>
+            <el-button 
+              v-if="row.status === '已确认'" 
+              type="success" 
+              size="small"
+              @click="handleResolve(row)"
+            >
+              解除
+            </el-button>
+            <el-button 
+              type="info" 
+              size="small"
+              @click="showDetail(row)"
+            >
+              详情
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
 
-    <el-pagination
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      style="margin-top: 20px"
-      @size-change="loadAlerts"
-      @current-change="loadAlerts"
-    />
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="size"
+        :total="total"
+        :page-sizes="[10, 20, 50]"
+        layout="total, sizes, prev, pager, next"
+        style="margin-top: var(--space-5)"
+        @size-change="loadAlerts"
+        @current-change="loadAlerts"
+      />
+    </div>
 
     <!-- 详情弹窗 -->
     <el-dialog v-model="detailVisible" title="报警详情" width="600px">
@@ -147,7 +147,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { getAlerts, getAlertStats, confirmAlert, resolveAlert } from '@/api/alert'
 import { useUserStore } from '@/stores/user'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 
 const Refresh = 'Refresh'
 
@@ -279,36 +279,46 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: var(--space-5);
 }
 
-.page-header h2 { margin: 0; }
+.page-header h2 { margin: 0; font-size: var(--text-xl); font-weight: 600; }
 
-.header-actions { display: flex; gap: 10px; }
+.header-actions { display: flex; gap: var(--space-3); }
 
 .stats-row {
-  display: flex;
-  gap: 16px;
-  margin-bottom: 20px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
 }
 
-.stat-card { flex: 1; }
-
-.stat-content {
+.stat-card {
+  background: var(--bg-white);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
 .stat-value {
-  font-size: 28px;
+  font-size: var(--text-2xl);
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .stat-label {
-  font-size: 14px;
-  color: #909399;
-  margin-top: 4px;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin-top: var(--space-1);
+}
+
+.table-card {
+  background: var(--bg-white);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
 }
 </style>

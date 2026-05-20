@@ -47,8 +47,23 @@ const getThresholdHistory = async (req, res, next) => {
   }
 };
 
+// 获取我的阈值（患者端）
+const getMyThreshold = async (req, res, next) => {
+  try {
+    const threshold = await thresholdService.getMyThreshold(req.userId);
+    res.json({
+      code: 200,
+      message: '获取成功',
+      data: threshold
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getThresholdByPatientId,
   setThreshold,
-  getThresholdHistory
+  getThresholdHistory,
+  getMyThreshold
 };
