@@ -35,6 +35,10 @@ const MedicalReport = sequelize.define('MedicalReport', {
     type: DataTypes.DATE,
     allowNull: true
   },
+  create_time: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
   version: {
     type: DataTypes.STRING(10),
     defaultValue: '1.0'

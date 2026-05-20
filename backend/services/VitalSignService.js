@@ -74,20 +74,33 @@ const getMyVitals = async (userId, hours = 24) => {
     throw new BusinessError('用户不存在', 404);
   }
 
+  // 从用户名提取患者ID，例如 patient01 -> P001, patient1 -> P001
+  let patientId = null;
+  const username = user.username;
+  
+  if (username.startsWith('patient')) {
+    const numPart = username.replace('patient', '');
+    patientId = 'P' + numPart.padStart(3, '0');
+  }
+  
   // 查找该用户关联的患者
-  const patient = await Patient.findOne({
-    where: { patient_id: user.username.replace('patient', 'P') }
-  });
-
-  if (!patient) {
-    // 尝试其他方式查找患者记录
-    const allPatients = await Patient.findAll();
-    // patient001用户对应的患者
-    patient = allPatients.find(p => p.name.includes('张三') || p.name.includes('李四'));
+  let patient = null;
+  if (patientId) {
+    patient = await Patient.findOne({
+      where: { patient_id: patientId }
+    });
   }
 
+  // 如果没找到，尝试通过真实姓名匹配
+  if (!patient && user.real_name) {
+    patient = await Patient.findOne({
+      where: { name: user.real_name }
+    });
+  }
+
+  // 如果还是没找到，返回空数据（而不是报错）
   if (!patient) {
-    return { list: [], total: 0 };
+    return { list: [], total: 0, message: '未找到关联的患者记录' };
   }
 
   const startTime = new Date(Date.now() - hours * 60 * 60 * 1000);

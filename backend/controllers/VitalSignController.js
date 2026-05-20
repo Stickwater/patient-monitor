@@ -1,15 +1,45 @@
 // 生理信号控制器
 const { vitalSignService } = require('../services');
 const { emitVitalUpdate } = require('../websocket/server');
+const { Patient, User } = require('../models');
 
 // 上传生理信号（传感器调用）
 const uploadVitalSign = async (req, res, next) => {
   try {
-    const result = await vitalSignService.uploadVitalSign(req.body);
+    let patientId = req.body.patientId;
+    
+    // 如果是患者上传，自动获取自己的patientId
+    if (req.user && req.user.role === 'patient' && !patientId) {
+      const username = req.user.username;
+      if (username.startsWith('patient')) {
+        const numPart = username.replace('patient', '');
+        patientId = 'P' + numPart.padStart(3, '0');
+      }
+      
+      // 如果还是没找到，尝试通过姓名匹配
+      if (!patientId) {
+        const patient = await Patient.findOne({
+          where: { name: req.user.real_name }
+        });
+        if (patient) {
+          patientId = patient.patient_id;
+        }
+      }
+    }
+    
+    if (!patientId) {
+      return res.status(400).json({
+        code: 400,
+        message: '患者ID不能为空'
+      });
+    }
+    
+    const data = { ...req.body, patientId };
+    const result = await vitalSignService.uploadVitalSign(data);
 
     // 实时推送数据
     if (result.status === 'normal') {
-      emitVitalUpdate(req.body.patientId, result.compareResult);
+      emitVitalUpdate(patientId, result.compareResult);
     }
 
     res.json({

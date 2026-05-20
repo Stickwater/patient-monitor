@@ -4,8 +4,8 @@ const router = express.Router();
 const vitalSignController = require('../controllers/VitalSignController');
 const { authenticate, authorize } = require('../middleware/auth');
 
-// POST /api/v1/vitals/upload - 上传生理信号（传感器调用）
-router.post('/upload', vitalSignController.uploadVitalSign);
+// POST /api/v1/vitals/upload - 上传生理信号（传感器调用或患者手动录入）
+router.post('/upload', authenticate, vitalSignController.uploadVitalSign);
 
 // GET /api/v1/vitals/my - 获取我的体征数据（患者端）
 router.get('/my', authenticate, authorize('patient'), vitalSignController.getMyVitals);

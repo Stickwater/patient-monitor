@@ -73,6 +73,7 @@ const generateReport = async (patientId, startTime, endTime, title) => {
     abnormal_events: abnormalEvents,
     start_time: startTime,
     end_time: endTime,
+    create_time: new Date(),
     version: '1.0'
   });
 
@@ -208,14 +209,28 @@ const getMyReports = async (userId, query = {}) => {
     throw new BusinessError('用户不存在', 404);
   }
 
+  // 从用户名提取患者ID，例如 patient01 -> P001, patient1 -> P001
+  let patientId = null;
+  const username = user.username;
+  
+  if (username.startsWith('patient')) {
+    const numPart = username.replace('patient', '');
+    patientId = 'P' + numPart.padStart(3, '0');
+  }
+  
   // 查找该用户关联的患者
-  let patient = await Patient.findOne({
-    where: { patient_id: user.username.replace('patient', 'P') }
-  });
+  let patient = null;
+  if (patientId) {
+    patient = await Patient.findOne({
+      where: { patient_id: patientId }
+    });
+  }
 
-  if (!patient) {
-    const allPatients = await Patient.findAll();
-    patient = allPatients.find(p => p.name.includes('张三') || p.name.includes('李四'));
+  // 如果没找到，尝试通过真实姓名匹配
+  if (!patient && user.real_name) {
+    patient = await Patient.findOne({
+      where: { name: user.real_name }
+    });
   }
 
   if (!patient) {
@@ -281,13 +296,28 @@ const getMyReportDetail = async (userId, reportId) => {
     throw new BusinessError('用户不存在', 404);
   }
 
-  let patient = await Patient.findOne({
-    where: { patient_id: user.username.replace('patient', 'P') }
-  });
+  // 从用户名提取患者ID，例如 patient01 -> P001, patient1 -> P001
+  let patientId = null;
+  const username = user.username;
+  
+  if (username.startsWith('patient')) {
+    const numPart = username.replace('patient', '');
+    patientId = 'P' + numPart.padStart(3, '0');
+  }
+  
+  // 查找该用户关联的患者
+  let patient = null;
+  if (patientId) {
+    patient = await Patient.findOne({
+      where: { patient_id: patientId }
+    });
+  }
 
-  if (!patient) {
-    const allPatients = await Patient.findAll();
-    patient = allPatients.find(p => p.name.includes('张三') || p.name.includes('李四'));
+  // 如果没找到，尝试通过真实姓名匹配
+  if (!patient && user.real_name) {
+    patient = await Patient.findOne({
+      where: { name: user.real_name }
+    });
   }
 
   if (!patient) {

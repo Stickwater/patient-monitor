@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { ElMessage } from 'element-plus'
 
 // 护士/医生路由
 const staffRoutes = [
@@ -66,12 +67,33 @@ const routes = [
   },
   {
     path: '/',
+    redirect: to => {
+      const token = localStorage.getItem('token')
+      if (!token) return '/login'
+      
+      // 从 localStorage 恢复用户信息
+      const userInfoStr = localStorage.getItem('userInfo')
+      if (userInfoStr) {
+        try {
+          const userInfo = JSON.parse(userInfoStr)
+          if (userInfo.role === 'patient') {
+            return '/vital-input'
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+      return '/monitor'
+    },
     component: () => import('@/views/layout/index.vue'),
-    redirect: '/monitor',
     children: [
       ...staffRoutes,
       ...patientRoutes
     ]
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/login'
   }
 ]
 
@@ -81,32 +103,54 @@ const router = createRouter({
 })
 
 // 路由守卫
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   document.title = to.meta.title ? `${to.meta.title} - 患者监护系统` : '患者监护系统'
   
   const userStore = useUserStore()
   const token = localStorage.getItem('token')
   
+  // 登录页直接放行
   if (to.path === '/login') {
     next()
-  } else if (!token) {
+    return
+  }
+  
+  // 未登录则跳转登录
+  if (!token) {
     next('/login')
-  } else {
-    // 检查用户角色是否有权限访问该路由
-    const userRole = userStore.role
-    const allowedRoles = to.meta.roles
-    
-    if (allowedRoles && !allowedRoles.includes(userRole)) {
-      // 角色无权访问，重定向到该角色的默认页面
-      if (userRole === 'patient') {
-        next('/vital-input')
-      } else {
-        next('/monitor')
+    return
+  }
+  
+  // 确保用户信息已加载
+  if (!userStore.userInfo) {
+    const userInfoStr = localStorage.getItem('userInfo')
+    if (userInfoStr) {
+      try {
+        userStore.userInfo = JSON.parse(userInfoStr)
+      } catch (e) {
+        // 解析失败，尝试获取
+        await userStore.fetchUserInfo()
       }
     } else {
-      next()
+      await userStore.fetchUserInfo()
     }
   }
+  
+  const userRole = userStore.role
+  const allowedRoles = to.meta.roles
+  
+  // 检查角色权限
+  if (allowedRoles && allowedRoles.length > 0 && userRole && !allowedRoles.includes(userRole)) {
+    ElMessage.warning('您没有权限访问该页面')
+    if (userRole === 'patient') {
+      next('/vital-input')
+    } else {
+      next('/monitor')
+    }
+    return
+  }
+  
+  next()
 })
 
 export default router

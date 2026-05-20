@@ -31,17 +31,31 @@ const getMyThreshold = async (userId) => {
     throw new BusinessError('用户不存在', 404);
   }
 
+  // 从用户名提取患者ID，例如 patient01 -> P001, patient1 -> P001
+  let patientId = null;
+  const username = user.username;
+  
+  if (username.startsWith('patient')) {
+    const numPart = username.replace('patient', '');
+    patientId = 'P' + numPart.padStart(3, '0');
+  }
+  
   // 查找该用户关联的患者
-  const patient = await Patient.findOne({
-    where: { patient_id: user.username.replace('patient', 'P') }
-  });
-
-  if (!patient) {
-    // 尝试其他方式查找
-    const allPatients = await Patient.findAll();
-    patient = allPatients.find(p => p.name.includes('张三') || p.name.includes('李四'));
+  let patient = null;
+  if (patientId) {
+    patient = await Patient.findOne({
+      where: { patient_id: patientId }
+    });
   }
 
+  // 如果没找到，尝试通过真实姓名匹配
+  if (!patient && user.real_name) {
+    patient = await Patient.findOne({
+      where: { name: user.real_name }
+    });
+  }
+
+  // 如果还是没找到，返回null
   if (!patient) {
     return null;
   }
