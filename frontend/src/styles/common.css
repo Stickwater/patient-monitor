@@ -1,0 +1,150 @@
+/* 患者监护系统全局样式 */
+:root {
+  /* 主色调 - 医疗蓝 */
+  --primary-color: #1890ff;
+  --primary-light: #40a9ff;
+  --primary-dark: #096dd9;
+  
+  /* 辅助色 */
+  --success-color: #52c41a;
+  --warning-color: #faad14;
+  --danger-color: #ff4d4f;
+  --info-color: #909399;
+  
+  /* 报警等级颜色 */
+  --alert-normal: #52c41a;
+  --alert-general: #faad14;
+  --alert-severe: #ff7a45;
+  --alert-critical: #ff4d4f;
+  
+  /* 背景色 */
+  --bg-color: #f0f2f5;
+  --card-bg: #ffffff;
+  
+  /* 文字色 */
+  --text-primary: #303133;
+  --text-regular: #606266;
+  --text-secondary: #909399;
+  
+  /* 边框色 */
+  --border-color: #dcdfe6;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+}
+
+/* 卡片样式 */
+.card {
+  background: var(--card-bg);
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* 报警状态标签 */
+.alert-tag {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.alert-tag.pending {
+  background: #fff1e6;
+  color: var(--alert-severe);
+}
+
+.alert-tag.confirmed {
+  background: #e6f7ff;
+  color: var(--primary-color);
+}
+
+.alert-tag.resolved {
+  background: #f6ffed;
+  color: var(--success-color);
+}
+
+.alert-tag.escalated {
+  background: #fff2f0;
+  color: var(--alert-critical);
+}
+
+/* 等级标签 */
+.level-tag {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.level-tag.general {
+  background: #fffbe6;
+  color: var(--warning-color);
+}
+
+.level-tag.severe {
+  background: #fff2f0;
+  color: var(--alert-severe);
+}
+
+.level-tag.critical {
+  background: #ffebe8;
+  color: var(--danger-color);
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Flex布局工具类 */
+.flex { display: flex; }
+.flex-center { display: flex; align-items: center; justify-content: center; }
+.flex-between { display: flex; align-items: center; justify-content: space-between; }
+.flex-1 { flex: 1; }
+.gap-10 { gap: 10px; }
+.gap-20 { gap: 20px; }
+
+/* 间距工具类 */
+.mt-10 { margin-top: 10px; }
+.mt-20 { margin-top: 20px; }
+.mb-10 { margin-bottom: 10px; }
+.mb-20 { margin-bottom: 20px; }
+.p-10 { padding: 10px; }
+.p-20 { padding: 20px; }
+
+/* 文字工具类 */
+.text-center { text-align: center; }
+.text-success { color: var(--success-color); }
+.text-danger { color: var(--danger-color); }
+.text-warning { color: var(--warning-color); }
+.text-muted { color: var(--text-secondary); }
