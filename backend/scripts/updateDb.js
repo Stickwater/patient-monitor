@@ -40,6 +40,20 @@ const updateDatabase = async () => {
       UPDATE medical_reports SET create_time = COALESCE(create_time, start_time, NOW()) WHERE create_time IS NULL
     `);
     console.log('✓ 现有报告的 create_time 已更新');
+
+    // 添加 user_id 字段到 patients 表（如果不存在）
+    try {
+      await sequelize.query(`
+        ALTER TABLE patients ADD COLUMN user_id VARCHAR(32) DEFAULT NULL
+      `);
+      console.log('✓ patients.user_id 字段已添加');
+    } catch (e) {
+      if (e.message.includes('Duplicate')) {
+        console.log('- patients.user_id 字段已存在');
+      } else {
+        console.log('- 添加 patients.user_id 字段时出错:', e.message);
+      }
+    }
     
     // 添加更多演示数据
     await addDemoData();
@@ -126,16 +140,16 @@ const addDemoData = async () => {
   
   // 3. 添加患者记录（P001-P010，bed_number 统一格式：X区-XXX床）
   const patients = [
-    { patient_id: 'P001', name: '张三', gender: 'M', age: 30, bed_number: 'A区-101床', admission_date: new Date('2026-05-01'), status: 'admitted', attending_doctor_id: 'U001' },
-    { patient_id: 'P002', name: '李四', gender: 'M', age: 50, bed_number: 'A区-102床', admission_date: new Date('2026-05-05'), status: 'admitted', attending_doctor_id: 'U001' },
-    { patient_id: 'P003', name: '王五', gender: 'M', age: 55, bed_number: 'A区-103床', admission_date: new Date('2026-05-08'), status: 'admitted', attending_doctor_id: 'U001' },
-    { patient_id: 'P004', name: '赵六', gender: 'F', age: 42, bed_number: 'B区-201床', admission_date: new Date('2026-05-10'), status: 'admitted', attending_doctor_id: 'U003' },
-    { patient_id: 'P005', name: '孙七', gender: 'M', age: 48, bed_number: 'B区-202床', admission_date: new Date('2026-05-12'), status: 'admitted', attending_doctor_id: 'U003' },
-    { patient_id: 'P006', name: '赵丽', gender: 'F', age: 45, bed_number: 'C区-306床', admission_date: new Date('2026-05-15'), status: 'admitted', attending_doctor_id: 'U003' },
-    { patient_id: 'P007', name: '钱明', gender: 'M', age: 62, bed_number: 'C区-307床', admission_date: new Date('2026-05-18'), status: 'admitted', attending_doctor_id: 'U003' },
-    { patient_id: 'P008', name: '孙华', gender: 'F', age: 35, bed_number: 'D区-401床', admission_date: new Date('2026-05-19'), status: 'admitted', attending_doctor_id: 'U004' },
-    { patient_id: 'P009', name: '周强', gender: 'M', age: 55, bed_number: 'D区-402床', admission_date: new Date('2026-05-20'), status: 'admitted', attending_doctor_id: 'U004' },
-    { patient_id: 'P010', name: '吴芳', gender: 'F', age: 28, bed_number: 'D区-403床', admission_date: new Date('2026-05-20'), status: 'admitted', attending_doctor_id: 'U003' }
+    { patient_id: 'P001', user_id: 'U011', name: '张三', gender: 'M', age: 30, bed_number: 'A区-101床', admission_date: new Date('2026-05-01'), status: 'admitted', attending_doctor_id: 'U001' },
+    { patient_id: 'P002', user_id: 'U012', name: '李四', gender: 'M', age: 50, bed_number: 'A区-102床', admission_date: new Date('2026-05-05'), status: 'admitted', attending_doctor_id: 'U001' },
+    { patient_id: 'P003', user_id: 'U013', name: '王五', gender: 'M', age: 55, bed_number: 'A区-103床', admission_date: new Date('2026-05-08'), status: 'admitted', attending_doctor_id: 'U001' },
+    { patient_id: 'P004', user_id: 'U014', name: '赵六', gender: 'F', age: 42, bed_number: 'B区-201床', admission_date: new Date('2026-05-10'), status: 'admitted', attending_doctor_id: 'U003' },
+    { patient_id: 'P005', user_id: 'U015', name: '孙七', gender: 'M', age: 48, bed_number: 'B区-202床', admission_date: new Date('2026-05-12'), status: 'admitted', attending_doctor_id: 'U003' },
+    { patient_id: 'P006', user_id: 'U006', name: '赵丽', gender: 'F', age: 45, bed_number: 'C区-306床', admission_date: new Date('2026-05-15'), status: 'admitted', attending_doctor_id: 'U003' },
+    { patient_id: 'P007', user_id: 'U007', name: '钱明', gender: 'M', age: 62, bed_number: 'C区-307床', admission_date: new Date('2026-05-18'), status: 'admitted', attending_doctor_id: 'U003' },
+    { patient_id: 'P008', user_id: 'U008', name: '孙华', gender: 'F', age: 35, bed_number: 'D区-401床', admission_date: new Date('2026-05-19'), status: 'admitted', attending_doctor_id: 'U004' },
+    { patient_id: 'P009', user_id: 'U009', name: '周强', gender: 'M', age: 55, bed_number: 'D区-402床', admission_date: new Date('2026-05-20'), status: 'admitted', attending_doctor_id: 'U004' },
+    { patient_id: 'P010', user_id: 'U010', name: '吴芳', gender: 'F', age: 28, bed_number: 'D区-403床', admission_date: new Date('2026-05-20'), status: 'admitted', attending_doctor_id: 'U003' }
   ];
   
   for (const patient of patients) {
@@ -146,6 +160,11 @@ const addDemoData = async () => {
       });
       if (created) {
         console.log(`✓ 添加患者: ${p.name}`);
+      }
+      // 补充 user_id 关联
+      if (!p.user_id && patient.user_id) {
+        await p.update({ user_id: patient.user_id });
+        console.log(`✓ 更新患者 ${p.name} 的 user_id 关联`);
       }
     } catch (e) {
       console.log(`- 患者 ${patient.name} 添加失败: ${e.message}`);

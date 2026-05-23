@@ -4,6 +4,9 @@ const router = express.Router();
 const patientController = require('../controllers/PatientController');
 const { authenticate, authorize, authorizePatient } = require('../middleware/auth');
 
+// GET /api/v1/patients/me - 获取当前患者自己的信息（患者端）- 必须在 /:patientId 之前
+router.get('/me', authenticate, authorize('patient'), patientController.getMyInfo);
+
 // GET /api/v1/patients - 获取患者列表
 router.get('/', authenticate, authorize('nurse', 'doctor'), patientController.getPatients);
 

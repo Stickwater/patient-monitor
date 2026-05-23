@@ -4,6 +4,9 @@ const router = express.Router();
 const thresholdController = require('../controllers/ThresholdController');
 const { authenticate, authorize } = require('../middleware/auth');
 
+// GET /api/v1/thresholds/my - 获取我的阈值（患者端）- 必须在 /:patientId 之前
+router.get('/my', authenticate, authorize('patient'), thresholdController.getMyThreshold);
+
 // GET /api/v1/thresholds/:patientId - 获取患者阈值
 router.get('/:patientId', authenticate, authorize('nurse', 'doctor', 'patient'), thresholdController.getThresholdByPatientId);
 
@@ -12,8 +15,5 @@ router.post('/:patientId', authenticate, authorize('doctor'), thresholdControlle
 
 // GET /api/v1/thresholds/:patientId/history - 获取阈值历史
 router.get('/:patientId/history', authenticate, authorize('doctor'), thresholdController.getThresholdHistory);
-
-// GET /api/v1/thresholds/my - 获取我的阈值（患者端）
-router.get('/my', authenticate, authorize('patient'), thresholdController.getMyThreshold);
 
 module.exports = router;

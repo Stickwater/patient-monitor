@@ -24,38 +24,16 @@ const getThresholdByPatientId = async (patientId) => {
 
 // 获取我的阈值（患者端）
 const getMyThreshold = async (userId) => {
-  // 通过用户ID找到对应的患者记录
   const user = await User.findByPk(userId);
   
   if (!user) {
     throw new BusinessError('用户不存在', 404);
   }
 
-  // 从用户名提取患者ID，例如 patient01 -> P001, patient1 -> P001
-  let patientId = null;
-  const username = user.username;
-  
-  if (username.startsWith('patient')) {
-    const numPart = username.replace('patient', '');
-    patientId = 'P' + numPart.padStart(3, '0');
-  }
-  
-  // 查找该用户关联的患者
-  let patient = null;
-  if (patientId) {
-    patient = await Patient.findOne({
-      where: { patient_id: patientId }
-    });
-  }
+  const patient = await Patient.findOne({
+    where: { user_id: userId }
+  });
 
-  // 如果没找到，尝试通过真实姓名匹配
-  if (!patient && user.real_name) {
-    patient = await Patient.findOne({
-      where: { name: user.real_name }
-    });
-  }
-
-  // 如果还是没找到，返回null
   if (!patient) {
     return null;
   }

@@ -2,7 +2,7 @@
 const { VitalSign, Patient, Threshold, CompareResult, Alert, PatientLog, User } = require('../models');
 const { BusinessError } = require('../middleware/errorHandler');
 const { v4: uuidv4 } = require('uuid');
-const { alertService } = require('./AlertService');
+const alertService = require('./AlertService');
 const { Op } = require('sequelize');
 
 // 上传生理信号
@@ -30,7 +30,7 @@ const uploadVitalSign = async (data) => {
   // 获取患者阈值
   const threshold = await Threshold.findOne({
     where: { patient_id: data.patientId },
-    order: [['created_at', 'DESC']]
+    order: [['effective_time', 'DESC']]
   });
 
   // 如果有阈值配置，执行比对

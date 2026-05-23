@@ -7,6 +7,10 @@ const Patient = sequelize.define('Patient', {
     type: DataTypes.STRING(32),
     primaryKey: true
   },
+  user_id: {
+    type: DataTypes.STRING(32),
+    allowNull: true
+  },
   name: {
     type: DataTypes.STRING(50),
     allowNull: false

@@ -60,7 +60,23 @@ const getPatientById = async (patientId) => {
   const patient = await Patient.findByPk(patientId, {
     include: [
       { model: User, as: 'attendingDoctor', attributes: ['user_id', 'real_name', 'department', 'phone'] },
-      { model: Threshold, as: 'Thresholds', limit: 1, order: [['created_at', 'DESC']] }
+      { model: Threshold, as: 'Thresholds', limit: 1, order: [['effective_time', 'DESC']] }
+    ]
+  });
+
+  if (!patient) {
+    throw new BusinessError('患者不存在', 404);
+  }
+
+  return patient;
+};
+
+// 根据用户ID获取患者信息（患者端使用）
+const getPatientByUserId = async (userId) => {
+  const patient = await Patient.findOne({
+    where: { user_id: userId },
+    include: [
+      { model: User, as: 'attendingDoctor', attributes: ['user_id', 'real_name', 'department', 'phone'] }
     ]
   });
 
@@ -137,6 +153,7 @@ const getLatestVital = async (patientId) => {
 module.exports = {
   getPatients,
   getPatientById,
+  getPatientByUserId,
   createPatient,
   updatePatient,
   getLatestVital

@@ -15,6 +15,10 @@ const setupAssociations = () => {
   User.hasMany(Patient, { foreignKey: 'attending_doctor_id', sourceKey: 'user_id' });
   Patient.belongsTo(User, { foreignKey: 'attending_doctor_id', as: 'attendingDoctor' });
 
+  // 用户-患者关联（患者账号关联）
+  User.hasOne(Patient, { foreignKey: 'user_id', sourceKey: 'user_id' });
+  Patient.belongsTo(User, { foreignKey: 'user_id', as: 'account' });
+
   // 患者-生理信号
   Patient.hasMany(VitalSign, { foreignKey: 'patient_id', sourceKey: 'patient_id' });
   VitalSign.belongsTo(Patient, { foreignKey: 'patient_id', as: 'patient' });

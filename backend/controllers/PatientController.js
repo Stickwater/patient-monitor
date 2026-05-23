@@ -71,10 +71,25 @@ const getLatestVital = async (req, res, next) => {
   }
 };
 
+// 获取当前患者自己的信息（患者端）
+const getMyInfo = async (req, res, next) => {
+  try {
+    const patient = await patientService.getPatientByUserId(req.userId);
+    res.json({
+      code: 200,
+      message: '获取成功',
+      data: patient
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getPatients,
   getPatientById,
   createPatient,
   updatePatient,
-  getLatestVital
+  getLatestVital,
+  getMyInfo
 };
