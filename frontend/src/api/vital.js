@@ -24,3 +24,8 @@ export const uploadVital = (data) => {
 export const getMyVitals = (params) => {
   return request.get('/vitals/my', { params })
 }
+
+// 按患者获取报警
+export const getAlertsByPatient = (patientId) => {
+  return request.get('/alerts', { params: { patientId } })
+}

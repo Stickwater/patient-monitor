@@ -19,3 +19,7 @@ export const updatePatient = (patientId, data) => {
 export const getLatestVital = (patientId) => {
   return request.get(`/patients/${patientId}/latest-vital`)
 }
+
+export const getDoctors = () => {
+  return request.get('/auth/doctors')
+}

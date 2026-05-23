@@ -117,17 +117,20 @@ const getLatestVital = async (patientId) => {
     throw new BusinessError('患者不存在', 404);
   }
 
-  const latestVital = await VitalSign.findOne({
+  const vital = await VitalSign.findOne({
     where: { patient_id: patientId },
     order: [['collect_time', 'DESC']]
   });
 
+  if (!vital) {
+    return null;
+  }
+
   return {
-    patientId: patient.patient_id,
-    patientName: patient.name,
-    bedNumber: patient.bed_number,
-    latestVital,
-    status: latestVital ? '正常' : '无数据'
+    pulse: vital.pulse,
+    temperature: vital.temperature,
+    blood_pressure: vital.blood_pressure,
+    collect_time: vital.collect_time
   };
 };
 

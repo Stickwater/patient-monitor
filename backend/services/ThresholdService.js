@@ -13,7 +13,7 @@ const getThresholdByPatientId = async (patientId) => {
 
   const threshold = await Threshold.findOne({
     where: { patient_id: patientId },
-    order: [['created_at', 'DESC']],
+    order: [['effective_time', 'DESC']],
     include: [
       { model: User, as: 'creator', attributes: ['user_id', 'real_name'] }
     ]
@@ -62,7 +62,7 @@ const getMyThreshold = async (userId) => {
 
   const threshold = await Threshold.findOne({
     where: { patient_id: patient.patient_id },
-    order: [['created_at', 'DESC']]
+    order: [['effective_time', 'DESC']]
   });
 
   return threshold;
@@ -254,7 +254,7 @@ const getThresholdHistory = async (patientId) => {
     include: [
       { model: User, as: 'creator', attributes: ['user_id', 'real_name'] }
     ],
-    order: [['created_at', 'DESC']]
+    order: [['effective_time', 'DESC']]
   });
 
   return thresholds;

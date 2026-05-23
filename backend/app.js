@@ -27,6 +27,19 @@ app.use((req, res, next) => {
   next();
 });
 
+// 根路径
+app.get('/', (req, res) => {
+  res.json({
+    code: 200,
+    message: '患者监护系统 API 服务',
+    data: {
+      version: '1.0.0',
+      docs: '/api/v1',
+      health: '/health'
+    }
+  });
+});
+
 // 健康检查
 app.get('/health', (req, res) => {
   res.json({

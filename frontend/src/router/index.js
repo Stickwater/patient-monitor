@@ -23,6 +23,12 @@ const staffRoutes = [
     meta: { title: '患者管理', icon: 'User', roles: ['nurse', 'doctor'] }
   },
   {
+    path: '/patient/:id',
+    name: 'PatientDetail',
+    component: () => import('@/views/patient/detail.vue'),
+    meta: { title: '患者详情', roles: ['nurse', 'doctor'] }
+  },
+  {
     path: '/reports',
     name: 'Reports',
     component: () => import('@/views/report/index.vue'),

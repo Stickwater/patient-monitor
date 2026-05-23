@@ -100,8 +100,11 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { getPatients, createPatient, updatePatient } from '@/api/patient'
 import { ElMessage } from 'element-plus'
+
+const router = useRouter()
 
 const Search = 'Search'
 
@@ -169,7 +172,7 @@ const handleEdit = (row) => {
 }
 
 const handleView = (row) => {
-  ElMessage.info('查看详情功能开发中')
+  router.push(`/patient/${row.patient_id}`)
 }
 
 const submitForm = async () => {
