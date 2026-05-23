@@ -27,19 +27,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// 根路径
-app.get('/', (req, res) => {
-  res.json({
-    code: 200,
-    message: '患者监护系统 API 服务',
-    data: {
-      version: '1.0.0',
-      docs: '/api/v1',
-      health: '/health'
-    }
-  });
-});
-
 // 健康检查
 app.get('/health', (req, res) => {
   res.json({
@@ -53,8 +40,17 @@ app.get('/health', (req, res) => {
   });
 });
 
-// 设置路由
+// 静态文件服务（托管前端打包产物）
+const path = require('path');
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
+
+// API 路由
 setupRoutes(app);
+
+// SPA 路由兜底：未匹配到 API 的请求指向前端 index.html
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
+});
 
 // 404处理
 app.use(notFoundHandler);
