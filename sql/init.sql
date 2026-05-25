@@ -153,15 +153,7 @@ CREATE TABLE `compare_results` (
     INDEX `idx_patient_time` (`patient_id`, `timestamp`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='比对结果表';
 
--- 插入测试数据
--- 管理员/医生用户（密码都是 123456，使用BCrypt加密）
-INSERT INTO `users` (`user_id`, `username`, `password`, `role`, `real_name`, `phone`, `department`, `status`) VALUES
-('U2024001', 'doctor001', '$2a$10$RnFm4ooMlqOcmw7bZUH0eu4AbEf1JAFAK5yk1DrKvIbxtXzRWEPRG', 'doctor', '张医生', '13800138001', '心内科', 'active'),
-('U2024002', 'doctor002', '$2a$10$RnFm4ooMlqOcmw7bZUH0eu4AbEf1JAFAK5yk1DrKvIbxtXzRWEPRG', 'doctor', '李医生', '13800138002', '呼吸科', 'active'),
-('U2024003', 'nurse001', '$2a$10$RnFm4ooMlqOcmw7bZUH0eu4AbEf1JAFAK5yk1DrKvIbxtXzRWEPRG', 'nurse', '王护士', '13800138003', '心内科', 'active'),
-('U2024004', 'nurse002', '$2a$10$RnFm4ooMlqOcmw7bZUH0eu4AbEf1JAFAK5yk1DrKvIbxtXzRWEPRG', 'nurse', '赵护士', '13800138004', '呼吸科', 'active'),
-('U2024005', 'patient001', '$2a$10$RnFm4ooMlqOcmw7bZUH0eu4AbEf1JAFAK5yk1DrKvIbxtXzRWEPRG', 'patient', '患者张三', '13800138005', NULL, 'active'),
-('U2024006', 'patient002', '$2a$10$RnFm4ooMlqOcmw7bZUH0eu4AbEf1JAFAK5yk1DrKvIbxtXzRWEPRG', 'patient', '患者李四', '13800138006', NULL, 'active');
+-- 插入测试数据（密码占位符，由 initDb.js 运行时替换为正确的 BCrypt 哈希）
 
 -- 插入患者数据
 INSERT INTO `patients` (`patient_id`, `name`, `gender`, `age`, `bed_number`, `admission_date`, `attending_doctor_id`, `status`) VALUES
