@@ -44,7 +44,15 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo [4/4] 构建前端并重启服务 ...
+echo [4/6] 生成模拟体征数据 ...
+call node ..\scripts\seed_mock_data.js
+
+echo.
+echo [5/6] 生成报警记录 ...
+call node ..\scripts\seed_alerts.js
+
+echo.
+echo [6/6] 构建前端并重启服务 ...
 cd ..\frontend
 call npm install
 call npm run build

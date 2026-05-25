@@ -1,6 +1,8 @@
 // 从已有体征数据中比对阈值，生成报警记录（含多种状态，覆盖所有在院患者）
-const mysql = require('mysql2/promise');
 const path = require('path');
+// 从 backend/node_modules 加载依赖
+module.paths.unshift(path.join(__dirname, '..', 'backend', 'node_modules'));
+const mysql = require('mysql2/promise');
 require('dotenv').config({ path: path.join(__dirname, '..', 'backend', '.env') });
 
 async function seed() {
