@@ -7,10 +7,10 @@ require('dotenv').config({ path: path.join(__dirname, '..', 'backend', '.env') }
 
 function pickStatus() {
   const r = Math.random();
-  if (r < 0.30) return '待处理';
-  if (r < 0.50) return '已确认';
-  if (r < 0.75) return '已升级';
-  return '已解除';
+  if (r < 0.55) return '待处理';  // 55%待处理，大量待办
+  if (r < 0.70) return '已确认';  // 15%
+  if (r < 0.90) return '已升级';  // 20%
+  return '已解除';                // 10%
 }
 
 function pickLevel(deviation) {
@@ -89,7 +89,7 @@ async function seed() {
       }
 
       // ---- 生成报警（每个指标独立判断，每人最多8条）----
-      if (patientAlertCount >= 8) continue;
+      if (patientAlertCount >= 12) continue;
 
       // 脉搏报警
       if (v.pulse != null && threshold.pulse_min != null) {
@@ -116,7 +116,7 @@ async function seed() {
       }
 
       // 体温报警
-      if (v.temperature != null && threshold.temperature_min != null && patientAlertCount < 8) {
+      if (v.temperature != null && threshold.temperature_min != null && patientAlertCount < 12) {
         const temp = parseFloat(v.temperature);
         if (temp < parseFloat(threshold.temperature_min) || temp > parseFloat(threshold.temperature_max)) {
           const dev = temp < parseFloat(threshold.temperature_min)
@@ -141,7 +141,7 @@ async function seed() {
       }
 
       // 血压报警
-      if (v.blood_pressure && threshold.bp_systolic_min != null && patientAlertCount < 8) {
+      if (v.blood_pressure && threshold.bp_systolic_min != null && patientAlertCount < 12) {
         const parts = v.blood_pressure.split('/');
         if (parts.length === 2) {
           const sys = parseInt(parts[0]), dia = parseInt(parts[1]);
