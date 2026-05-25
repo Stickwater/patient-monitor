@@ -31,6 +31,7 @@ CREATE TABLE `users` (
 DROP TABLE IF EXISTS `patients`;
 CREATE TABLE `patients` (
     `patient_id` VARCHAR(32) PRIMARY KEY COMMENT '患者编号',
+    `user_id` VARCHAR(32) NULL COMMENT '关联用户账号ID',
     `name` VARCHAR(50) NOT NULL COMMENT '姓名',
     `gender` ENUM('M','F') NOT NULL COMMENT '性别',
     `age` INT NOT NULL COMMENT '年龄',
@@ -38,10 +39,13 @@ CREATE TABLE `patients` (
     `admission_date` DATETIME COMMENT '入院日期',
     `attending_doctor_id` VARCHAR(32) COMMENT '主治医生ID',
     `status` ENUM('admitted','discharged') DEFAULT 'admitted' COMMENT '状态',
+    `medical_history` TEXT NULL COMMENT '病史',
+    `allergy` VARCHAR(500) NULL COMMENT '过敏史',
     `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (`attending_doctor_id`) REFERENCES `users`(`user_id`),
     INDEX `idx_bed` (`bed_number`),
-    INDEX `idx_doctor` (`attending_doctor_id`)
+    INDEX `idx_doctor` (`attending_doctor_id`),
+    INDEX `idx_user` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='患者表';
 
 -- 表3：生理信号表（vital_signs）
@@ -153,14 +157,31 @@ CREATE TABLE `compare_results` (
     INDEX `idx_patient_time` (`patient_id`, `timestamp`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='比对结果表';
 
+-- 表9：诊疗建议表（treatment_advice）
+DROP TABLE IF EXISTS `treatment_advice`;
+CREATE TABLE `treatment_advice` (
+    `advice_id` VARCHAR(32) PRIMARY KEY COMMENT '建议编号',
+    `patient_id` VARCHAR(32) NOT NULL COMMENT '患者编号',
+    `doctor_id` VARCHAR(32) NOT NULL COMMENT '医生ID',
+    `type` ENUM('treatment','diet','rehabilitation','health') DEFAULT 'treatment' COMMENT '建议类型',
+    `title` VARCHAR(200) NOT NULL COMMENT '标题',
+    `content` TEXT NOT NULL COMMENT '内容',
+    `is_active` TINYINT(1) DEFAULT 1 COMMENT '是否有效',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    FOREIGN KEY (`patient_id`) REFERENCES `patients`(`patient_id`),
+    FOREIGN KEY (`doctor_id`) REFERENCES `users`(`user_id`),
+    INDEX `idx_patient` (`patient_id`),
+    INDEX `idx_doctor` (`doctor_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='诊疗建议表';
+
 -- 插入测试数据（密码占位符，由 initDb.js 运行时替换为正确的 BCrypt 哈希）
 
 -- 插入患者数据
-INSERT INTO `patients` (`patient_id`, `name`, `gender`, `age`, `bed_number`, `admission_date`, `attending_doctor_id`, `status`) VALUES
-('P2024001', '张三', 'M', 55, 'A区-301床', '2026-05-15 10:00:00', 'U2024001', 'admitted'),
-('P2024002', '李四', 'F', 42, 'A区-302床', '2026-05-18 09:00:00', 'U2024001', 'admitted'),
-('P2024003', '王五', 'M', 68, 'B区-201床', '2026-05-10 14:00:00', 'U2024002', 'admitted'),
-('P2024004', '赵六', 'F', 35, 'B区-202床', '2026-05-19 11:00:00', 'U2024002', 'admitted');
+INSERT INTO `patients` (`patient_id`, `user_id`, `name`, `gender`, `age`, `bed_number`, `admission_date`, `attending_doctor_id`, `status`) VALUES
+('P2024001', 'U2024003', '张三', 'M', 55, 'A区-301床', '2026-05-15 10:00:00', 'U2024001', 'admitted'),
+('P2024002', NULL, '李四', 'F', 42, 'A区-302床', '2026-05-18 09:00:00', 'U2024001', 'admitted'),
+('P2024003', NULL, '王五', 'M', 68, 'B区-201床', '2026-05-10 14:00:00', 'U2024002', 'admitted'),
+('P2024004', NULL, '赵六', 'F', 35, 'B区-202床', '2026-05-19 11:00:00', 'U2024002', 'admitted');
 
 -- 插入阈值数据（默认阈值配置）
 INSERT INTO `thresholds` (`threshold_id`, `patient_id`, `pulse_min`, `pulse_max`, `temperature_min`, `temperature_max`, `bp_systolic_min`, `bp_systolic_max`, `bp_diastolic_min`, `bp_diastolic_max`, `ecg_rules`, `effective_time`, `created_by`) VALUES
