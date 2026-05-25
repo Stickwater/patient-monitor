@@ -10,10 +10,14 @@ const uploadVitalSign = async (req, res, next) => {
     
     // 如果是患者上传，自动获取自己的patientId
     if (req.user && req.user.role === 'patient' && !patientId) {
-      const username = req.user.username;
-      if (username.startsWith('patient')) {
-        const numPart = username.replace('patient', '');
-        patientId = 'P' + numPart.padStart(3, '0');
+      // 按 user_id 关联查找患者
+      if (req.user.user_id) {
+        const patient = await Patient.findOne({
+          where: { user_id: req.user.user_id }
+        });
+        if (patient) {
+          patientId = patient.patient_id;
+        }
       }
       
       // 如果还是没找到，尝试通过姓名匹配
