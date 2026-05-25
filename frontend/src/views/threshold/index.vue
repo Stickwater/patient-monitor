@@ -130,6 +130,58 @@
           <el-descriptions-item label="舒张压（成人）">60-90 mmHg</el-descriptions-item>
         </el-descriptions>
       </div>
+
+      <!-- 模板批量设置 -->
+      <div class="reference-card">
+        <div class="card-header">
+          <span>批量模板设置</span>
+        </div>
+        <el-form label-width="100px">
+          <el-form-item label="选择模板">
+            <el-select v-model="templateType" placeholder="请选择预设模板" style="width: 200px">
+              <el-option label="成人标准（18-64岁）" value="adult" />
+              <el-option label="老年人（65岁以上）" value="elderly" />
+              <el-option label="儿童（18岁以下）" value="child" />
+              <el-option label="高血压患者" value="hypertension" />
+              <el-option label="心血管患者" value="cardiac" />
+            </el-select>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" @click="applyTemplate" :disabled="!selectedPatientId || !templateType">
+              应用模板
+            </el-button>
+            <el-button @click="applyToAllPatients" :disabled="!templateType">
+              批量应用到所有患者
+            </el-button>
+          </el-form-item>
+        </el-form>
+      </div>
+
+      <!-- 修改历史 -->
+      <div class="history-card" v-if="thresholdHistory.length > 0">
+        <div class="card-header">
+          <span>修改历史</span>
+        </div>
+        <el-table :data="thresholdHistory" stripe size="small">
+          <el-table-column prop="effective_time" label="生效时间" width="160">
+            <template #default="{ row }">
+              {{ formatDateTime(row.effective_time) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="pulse_min" label="脉搏范围" width="120">
+            <template #default="{ row }">{{ row.pulse_min }}-{{ row.pulse_max }}</template>
+          </el-table-column>
+          <el-table-column prop="temperature_min" label="体温范围" width="120">
+            <template #default="{ row }">{{ row.temperature_min }}-{{ row.temperature_max }}</template>
+          </el-table-column>
+          <el-table-column label="血压(收缩/舒张)" width="180">
+            <template #default="{ row }">
+              {{ row.bp_systolic_min }}-{{ row.bp_systolic_max }} / {{ row.bp_diastolic_min }}-{{ row.bp_diastolic_max }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="creator.real_name" label="修改人" width="100" />
+        </el-table>
+      </div>
     </div>
 
     <el-empty v-else description="请选择患者进行阈值配置" />
@@ -139,7 +191,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { getPatients } from '@/api/patient'
-import { getThreshold, setThreshold } from '@/api/threshold'
+import { getThreshold, setThreshold, getThresholdHistory as fetchThresholdHistory } from '@/api/threshold'
 import { ElMessage } from 'element-plus'
 
 const CircleClose = 'CircleClose'
@@ -148,6 +200,8 @@ const patients = ref([])
 const selectedPatientId = ref('')
 const saving = ref(false)
 const formRef = ref()
+const thresholdHistory = ref([])
+const templateType = ref('')
 
 const form = reactive({
   pulseMin: 60,
@@ -220,6 +274,8 @@ const loadThreshold = async () => {
     form.bpDiastolicMax = 90
     form.ecgRules = []
   }
+  // 同时加载修改历史
+  loadThresholdHistory()
 }
 
 const submitForm = async () => {
@@ -243,11 +299,76 @@ const submitForm = async () => {
       effectiveTime: new Date().toISOString()
     })
     ElMessage.success('阈值配置成功')
+    loadThresholdHistory()
   } catch (error) {
     ElMessage.error('配置失败: ' + (error.message || '请检查阈值设置'))
   } finally {
     saving.value = false
   }
+}
+
+// 模板预设
+const templatePresets = {
+  adult: { pulseMin: 60, pulseMax: 100, temperatureMin: 36.0, temperatureMax: 37.3, bpSystolicMin: 90, bpSystolicMax: 140, bpDiastolicMin: 60, bpDiastolicMax: 90 },
+  elderly: { pulseMin: 55, pulseMax: 100, temperatureMin: 35.5, temperatureMax: 37.5, bpSystolicMin: 85, bpSystolicMax: 150, bpDiastolicMin: 55, bpDiastolicMax: 90 },
+  child: { pulseMin: 70, pulseMax: 110, temperatureMin: 36.0, temperatureMax: 37.5, bpSystolicMin: 90, bpSystolicMax: 120, bpDiastolicMin: 50, bpDiastolicMax: 80 },
+  hypertension: { pulseMin: 60, pulseMax: 90, temperatureMin: 36.0, temperatureMax: 37.3, bpSystolicMin: 80, bpSystolicMax: 130, bpDiastolicMin: 55, bpDiastolicMax: 85 },
+  cardiac: { pulseMin: 50, pulseMax: 90, temperatureMin: 36.0, temperatureMax: 37.3, bpSystolicMin: 85, bpSystolicMax: 135, bpDiastolicMin: 55, bpDiastolicMax: 85 }
+}
+
+const applyTemplate = () => {
+  const preset = templatePresets[templateType.value]
+  if (!preset) return
+  Object.assign(form, { ...preset, ecgRules: form.ecgRules })
+  ElMessage.success('模板已应用，请保存配置')
+}
+
+const applyToAllPatients = async () => {
+  const preset = templatePresets[templateType.value]
+  if (!preset) return
+
+  const allPatients = patients.value.filter(p => p.status === 'admitted')
+  if (allPatients.length === 0) {
+    ElMessage.warning('无在院患者可批量设置')
+    return
+  }
+
+  let successCount = 0
+  for (const patient of allPatients) {
+    try {
+      await setThreshold(patient.patient_id, {
+        pulseMin: preset.pulseMin,
+        pulseMax: preset.pulseMax,
+        temperatureMin: preset.temperatureMin,
+        temperatureMax: preset.temperatureMax,
+        bpSystolicMin: preset.bpSystolicMin,
+        bpSystolicMax: preset.bpSystolicMax,
+        bpDiastolicMin: preset.bpDiastolicMin,
+        bpDiastolicMax: preset.bpDiastolicMax,
+        ecgRules: [],
+        effectiveTime: new Date().toISOString()
+      })
+      successCount++
+    } catch (e) {
+      console.error(`批量设置患者${patient.name}阈值失败:`, e.message)
+    }
+  }
+  ElMessage.success(`批量设置完成：${successCount}/${allPatients.length} 名患者阈值已更新`)
+}
+
+const loadThresholdHistory = async () => {
+  if (!selectedPatientId.value) return
+  try {
+    const res = await fetchThresholdHistory(selectedPatientId.value)
+    thresholdHistory.value = res.data || []
+  } catch (error) {
+    thresholdHistory.value = []
+  }
+}
+
+const formatDateTime = (date) => {
+  if (!date) return '--'
+  return new Date(date).toLocaleString()
 }
 
 onMounted(() => {

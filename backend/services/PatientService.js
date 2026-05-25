@@ -1,5 +1,5 @@
 // 患者服务
-const { Patient, User, VitalSign, Threshold } = require('../models');
+const { Patient, User, VitalSign, Threshold, Alert } = require('../models');
 const { Op } = require('sequelize');
 const { BusinessError } = require('../middleware/errorHandler');
 const { v4: uuidv4 } = require('uuid');
@@ -73,15 +73,41 @@ const getPatientById = async (patientId) => {
 
 // 根据用户ID获取患者信息（患者端使用）
 const getPatientByUserId = async (userId) => {
-  const patient = await Patient.findOne({
+  const user = await User.findByPk(userId);
+  if (!user) throw new BusinessError('用户不存在', 404);
+
+  // 先尝试通过 user_id 关联
+  let patient = await Patient.findOne({
     where: { user_id: userId },
     include: [
       { model: User, as: 'attendingDoctor', attributes: ['user_id', 'real_name', 'department', 'phone'] }
     ]
   });
 
+  // 如果没找到，通过用户名命名约定匹配（如 patient01 → P001）
+  if (!patient && user.username && user.username.startsWith('patient')) {
+    const numPart = user.username.replace('patient', '');
+    const patientId = 'P' + numPart.padStart(3, '0');
+    patient = await Patient.findOne({
+      where: { patient_id: patientId },
+      include: [
+        { model: User, as: 'attendingDoctor', attributes: ['user_id', 'real_name', 'department', 'phone'] }
+      ]
+    });
+  }
+
+  // 如果还没找到，通过真实姓名匹配
+  if (!patient && user.real_name) {
+    patient = await Patient.findOne({
+      where: { name: user.real_name },
+      include: [
+        { model: User, as: 'attendingDoctor', attributes: ['user_id', 'real_name', 'department', 'phone'] }
+      ]
+    });
+  }
+
   if (!patient) {
-    throw new BusinessError('患者不存在', 404);
+    throw new BusinessError('未找到关联的患者记录', 404);
   }
 
   return patient;
@@ -119,7 +145,9 @@ const updatePatient = async (patientId, data) => {
     age: data.age || patient.age,
     bed_number: data.bedNumber || patient.bed_number,
     attending_doctor_id: data.attendingDoctorId || patient.attending_doctor_id,
-    status: data.status || patient.status
+    status: data.status || patient.status,
+    medical_history: data.medicalHistory !== undefined ? data.medicalHistory : patient.medical_history,
+    allergy: data.allergy !== undefined ? data.allergy : patient.allergy
   });
 
   return patient;
@@ -139,14 +167,23 @@ const getLatestVital = async (patientId) => {
   });
 
   if (!vital) {
-    return null;
+    return { latestVital: null, status: 'normal' };
   }
 
+  // 检查是否有待处理的报警
+  const pendingAlerts = await Alert.count({
+    where: { patient_id: patientId, status: '待处理' }
+  });
+
   return {
-    pulse: vital.pulse,
-    temperature: vital.temperature,
-    blood_pressure: vital.blood_pressure,
-    collect_time: vital.collect_time
+    latestVital: {
+      pulse: vital.pulse,
+      temperature: vital.temperature,
+      blood_pressure: vital.blood_pressure,
+      ecg: vital.ecg,
+      collect_time: vital.collect_time
+    },
+    status: pendingAlerts > 0 ? 'abnormal' : 'normal'
   };
 };
 

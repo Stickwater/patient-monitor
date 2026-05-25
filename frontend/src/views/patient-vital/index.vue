@@ -4,6 +4,39 @@
       <h2>体征数据录入</h2>
     </div>
 
+    <!-- 个人信息 -->
+    <div class="profile-card" v-if="patientInfo">
+      <div class="profile-header">
+        <h3>个人信息</h3>
+      </div>
+      <div class="profile-grid">
+        <div class="profile-item">
+          <span class="label">姓名</span>
+          <span class="value">{{ patientInfo.name }}</span>
+        </div>
+        <div class="profile-item">
+          <span class="label">性别</span>
+          <span class="value">{{ patientInfo.gender === 'M' ? '男' : '女' }}</span>
+        </div>
+        <div class="profile-item">
+          <span class="label">年龄</span>
+          <span class="value">{{ patientInfo.age }}岁</span>
+        </div>
+        <div class="profile-item">
+          <span class="label">床位号</span>
+          <span class="value">{{ patientInfo.bed_number }}</span>
+        </div>
+        <div class="profile-item">
+          <span class="label">主治医生</span>
+          <span class="value">{{ patientInfo.attendingDoctor?.real_name || '--' }}</span>
+        </div>
+        <div class="profile-item">
+          <span class="label">入院日期</span>
+          <span class="value">{{ formatDate(patientInfo.admission_date) }}</span>
+        </div>
+      </div>
+    </div>
+
     <div class="vital-form-card">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
         <el-form-item label="脉搏">
@@ -49,6 +82,16 @@
           </div>
         </el-form-item>
 
+        <el-form-item label="心电图">
+          <el-input 
+            v-model="form.ecg" 
+            type="textarea"
+            :rows="2"
+            placeholder="心电图数据（如：正常 / 心律不齐 / ST段异常 等）"
+            style="width: 400px"
+          />
+        </el-form-item>
+
         <el-form-item>
           <el-button type="primary" @click="submitForm" :loading="submitting">
             提交体征数据
@@ -77,17 +120,20 @@
 import { ref, reactive, onMounted } from 'vue'
 import { uploadVital } from '@/api/vital'
 import { getMyThreshold } from '@/api/threshold'
+import { getMyInfo } from '@/api/patient'
 import { ElMessage } from 'element-plus'
 
 const formRef = ref()
 const submitting = ref(false)
 const threshold = ref(null)
+const patientInfo = ref(null)
 
 const form = reactive({
   pulse: null,
   temperature: null,
   systolic: null,
-  diastolic: null
+  diastolic: null,
+  ecg: ''
 })
 
 const rules = {
@@ -105,7 +151,8 @@ const submitForm = async () => {
     const data = {
       pulse: form.pulse,
       temperature: form.temperature,
-      bloodPressure: `${form.systolic}/${form.diastolic}`
+      bloodPressure: `${form.systolic}/${form.diastolic}`,
+      ecg: form.ecg || null
     }
     
     await uploadVital(data)
@@ -116,6 +163,7 @@ const submitForm = async () => {
     form.temperature = null
     form.systolic = null
     form.diastolic = null
+    form.ecg = ''
   } catch (error) {
     if (error !== false) {
       ElMessage.error('提交失败，请重试')
@@ -134,14 +182,67 @@ const loadThreshold = async () => {
   }
 }
 
+const loadPatientInfo = async () => {
+  try {
+    const res = await getMyInfo()
+    patientInfo.value = res.data
+  } catch (error) {
+    console.error('获取患者信息失败:', error)
+  }
+}
+
+const formatDate = (date) => {
+  if (!date) return '--'
+  return new Date(date).toLocaleDateString()
+}
+
 onMounted(() => {
   loadThreshold()
+  loadPatientInfo()
 })
 </script>
 
 <style scoped>
 .vital-input-container {
   max-width: 600px;
+}
+
+.profile-card {
+  background: var(--bg-white);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  margin-bottom: var(--space-6);
+}
+
+.profile-header h3 {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 var(--space-4) 0;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+}
+
+.profile-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.profile-item .label {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.profile-item .value {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  font-weight: 500;
 }
 
 .page-header {

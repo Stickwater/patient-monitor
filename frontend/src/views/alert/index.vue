@@ -47,31 +47,36 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
+            <!-- 待处理：护士确认、升级、详情 -->
             <el-button 
-              v-if="row.status === '待处理'" 
+              v-if="userStore.isNurse && row.status === '待处理'" 
               type="primary" 
               size="small"
               @click="handleConfirm(row)"
-            >
-              确认
-            </el-button>
+            >确认</el-button>
             <el-button 
-              v-if="row.status === '已确认'" 
+              v-if="userStore.isNurse && row.status === '待处理'" 
+              type="warning" 
+              size="small"
+              @click="handleEscalate(row)"
+            >升级</el-button>
+            <!-- 已升级：医生解除 -->
+            <el-button 
+              v-if="userStore.isDoctor && row.status === '已升级'" 
               type="success" 
               size="small"
               @click="handleResolve(row)"
-            >
-              解除
-            </el-button>
+            >解除</el-button>
+            <!-- 已确认：护士解除 -->
             <el-button 
-              type="info" 
+              v-if="userStore.isNurse && row.status === '已确认'" 
+              type="success" 
               size="small"
-              @click="showDetail(row)"
-            >
-              详情
-            </el-button>
+              @click="handleResolve(row)"
+            >解除</el-button>
+            <el-button type="info" size="small" @click="showDetail(row)">详情</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -145,7 +150,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { getAlerts, getAlertStats, confirmAlert, resolveAlert } from '@/api/alert'
+import { getAlerts, getAlertStats, confirmAlert, resolveAlert, escalateAlert } from '@/api/alert'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
 
@@ -226,6 +231,17 @@ const submitConfirm = async () => {
     loadStats()
   } catch (error) {
     ElMessage.error('确认失败')
+  }
+}
+
+const handleEscalate = async (row) => {
+  try {
+    await escalateAlert(row.alertId)
+    ElMessage.success('报警已升级，通知主治医生')
+    loadAlerts()
+    loadStats()
+  } catch (error) {
+    ElMessage.error('升级失败')
   }
 }
 

@@ -60,6 +60,11 @@
             <el-icon><Document /></el-icon>
             <span>我的报告</span>
           </el-menu-item>
+
+          <el-menu-item index="/health-advice">
+            <el-icon><Notebook /></el-icon>
+            <span>健康建议</span>
+          </el-menu-item>
         </template>
       </el-menu>
     </aside>
@@ -148,6 +153,10 @@ onMounted(async () => {
         if (data.type === 'ALERT') {
           alertStore.addAlert(data.alert)
           ElMessage.warning(`新报警: ${data.alert.patientName} - ${data.alert.alertContent}`)
+        }
+        if (data.type === 'ALERT_ESCALATED') {
+          alertStore.addAlert(data.alert)
+          ElMessage.error(`报警已升级: ${data.alert.patientName} - ${data.alert.message}`)
         }
         if (data.type === 'CONNECTED') {
           alertStore.wsConnected = true

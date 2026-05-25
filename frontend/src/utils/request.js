@@ -34,12 +34,16 @@ request.interceptors.response.use(
   (error) => {
     if (error.response) {
       if (error.response.status === 401) {
-        ElMessage.error('登录已过期，请重新登录')
-        localStorage.removeItem('token')
-        localStorage.removeItem('userInfo')
-        // 避免重复跳转登录页
-        if (router.currentRoute.value.path !== '/login') {
-          router.push('/login')
+        // 登录页面的401是账号或密码错误，不要跳转
+        if (router.currentRoute.value.path === '/login') {
+          ElMessage.error(error.response.data?.message || '账号或密码错误')
+        } else {
+          ElMessage.error('登录已过期，请重新登录')
+          localStorage.removeItem('token')
+          localStorage.removeItem('userInfo')
+          if (router.currentRoute.value.path !== '/login') {
+            router.push('/login')
+          }
         }
       } else {
         ElMessage.error(error.response.data?.message || '请求失败')

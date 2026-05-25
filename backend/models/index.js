@@ -8,6 +8,7 @@ const Alert = require('./Alert');
 const PatientLog = require('./PatientLog');
 const MedicalReport = require('./MedicalReport');
 const CompareResult = require('./CompareResult');
+const TreatmentAdvice = require('./TreatmentAdvice');
 
 // 定义模型关联
 const setupAssociations = () => {
@@ -54,6 +55,14 @@ const setupAssociations = () => {
   // 生理信号-比对结果
   VitalSign.hasMany(CompareResult, { foreignKey: 'signal_id', sourceKey: 'signal_id' });
   CompareResult.belongsTo(VitalSign, { foreignKey: 'signal_id', as: 'vitalSign' });
+
+  // 患者-诊疗建议
+  Patient.hasMany(TreatmentAdvice, { foreignKey: 'patient_id', sourceKey: 'patient_id' });
+  TreatmentAdvice.belongsTo(Patient, { foreignKey: 'patient_id', as: 'patient' });
+
+  // 医生-诊疗建议
+  User.hasMany(TreatmentAdvice, { foreignKey: 'doctor_id', sourceKey: 'user_id' });
+  TreatmentAdvice.belongsTo(User, { foreignKey: 'doctor_id', as: 'doctor' });
 };
 
 module.exports = {
@@ -67,5 +76,6 @@ module.exports = {
   PatientLog,
   MedicalReport,
   CompareResult,
+  TreatmentAdvice,
   setupAssociations
 };

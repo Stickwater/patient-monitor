@@ -14,10 +14,10 @@ router.get('/stats', authenticate, authorize('nurse', 'doctor'), alertController
 router.get('/:alertId', authenticate, authorize('nurse', 'doctor'), alertController.getAlertById);
 
 // POST /api/v1/alerts/:alertId/confirm - 确认报警
-router.post('/:alertId/confirm', authenticate, authorize('nurse'), alertController.confirmAlert);
+router.post('/:alertId/confirm', authenticate, authorize('nurse', 'doctor'), alertController.confirmAlert);
 
 // POST /api/v1/alerts/:alertId/resolve - 解除报警
-router.post('/:alertId/resolve', authenticate, authorize('nurse'), alertController.resolveAlert);
+router.post('/:alertId/resolve', authenticate, authorize('nurse', 'doctor'), alertController.resolveAlert);
 
 // POST /api/v1/alerts/:alertId/escalate - 升级报警
 router.post('/:alertId/escalate', authenticate, authorize('nurse', 'doctor'), alertController.escalateAlert);

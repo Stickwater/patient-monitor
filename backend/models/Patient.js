@@ -38,6 +38,16 @@ const Patient = sequelize.define('Patient', {
   status: {
     type: DataTypes.ENUM('admitted', 'discharged'),
     defaultValue: 'admitted'
+  },
+  medical_history: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: '病史'
+  },
+  allergy: {
+    type: DataTypes.STRING(500),
+    allowNull: true,
+    comment: '过敏史'
   }
 }, {
   tableName: 'patients',

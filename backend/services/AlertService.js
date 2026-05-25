@@ -129,49 +129,63 @@ const getAlertById = async (alertId) => {
   };
 };
 
-// 创建报警（从比对结果创建）
+// 创建报警（从比对结果创建，每个异常指标生成一条报警）
 const createAlertFromCompare = async (patientId, compareResult, patient) => {
-  // 获取最严重的异常
-  const mostSevere = compareResult.abnormalItems.reduce((max, item) => {
-    const levelOrder = { '危急': 3, '严重': 2, '一般': 1 };
-    return levelOrder[item.abnormalLevel] > levelOrder[max?.abnormalLevel || '一般'] ? item : max;
-  }, compareResult.abnormalItems[0]);
+  if (!compareResult.abnormalItems || compareResult.abnormalItems.length === 0) return [];
 
-  if (!mostSevere) return null;
+  const alerts = [];
+  const levelOrder = { '危急': 3, '严重': 2, '一般': 1 };
 
-  const alertId = 'A' + Date.now();
+  // 为每个异常指标创建独立报警
+  for (const item of compareResult.abnormalItems) {
+    const alertId = 'A' + Date.now() + Math.random().toString(36).substr(2, 4);
 
-  const alert = await Alert.create({
-    alert_id: alertId,
-    patient_id: patientId,
-    alert_level: mostSevere.abnormalLevel || '一般',
-    alert_content: formatAlertContent(mostSevere),
-    indicator: mostSevere.indicator,
-    actual_value: mostSevere.actualValue?.toString() || '',
-    threshold_value: `${mostSevere.thresholdMin || ''}-${mostSevere.thresholdMax || ''}`,
-    status: '待处理',
-    timestamp: new Date()
-  });
+    const alert = await Alert.create({
+      alert_id: alertId,
+      patient_id: patientId,
+      alert_level: item.abnormalLevel || '一般',
+      alert_content: formatAlertContent(item),
+      indicator: item.indicator,
+      actual_value: item.actualValue?.toString() || '',
+      threshold_value: `${item.thresholdMin || ''}-${item.thresholdMax || ''}`,
+      status: '待处理',
+      timestamp: new Date()
+    });
 
-  // 通过WebSocket推送报警
-  emitAlert({
-    type: 'ALERT',
-    alert: {
-      alertId: alert.alert_id,
-      patientId: alert.patient_id,
-      patientName: patient.name,
-      bedNumber: patient.bed_number,
-      alertLevel: alert.alert_level,
-      alertContent: alert.alert_content,
-      indicator: alert.indicator,
-      actualValue: alert.actual_value,
-      thresholdValue: alert.threshold_value,
-      status: alert.status,
-      timestamp: alert.timestamp
-    }
-  });
+    alerts.push(alert);
+  }
 
-  return alert;
+  // 找到最严重的报警用于WebSocket通知
+  const mostSevere = alerts.reduce((max, a) => {
+    return levelOrder[a.alert_level] > levelOrder[max?.alert_level || '一般'] ? a : max;
+  }, alerts[0]);
+
+  if (mostSevere) {
+    // 汇总所有异常信息
+    const allAbnormalContent = compareResult.abnormalItems
+      .map(item => formatAlertContent(item))
+      .join('；');
+
+    emitAlert({
+      type: 'ALERT',
+      alert: {
+        alertId: mostSevere.alert_id,
+        patientId: mostSevere.patient_id,
+        patientName: patient.name,
+        bedNumber: patient.bed_number,
+        alertLevel: mostSevere.alert_level,
+        alertContent: allAbnormalContent,
+        indicator: mostSevere.indicator,
+        actualValue: mostSevere.actual_value,
+        thresholdValue: mostSevere.threshold_value,
+        status: mostSevere.status,
+        timestamp: mostSevere.timestamp,
+        allAlertsCount: alerts.length
+      }
+    });
+  }
+
+  return alerts;
 };
 
 // 格式化报警内容
@@ -266,9 +280,6 @@ const escalateAlert = async (alertId) => {
     alert_content: `[升级] ${alert.alert_content}`
   });
 
-  // 通知医生（实际项目中应发送短信/推送）
-  console.log(`通知医生 ${patient.attending_doctor_id}: 患者 ${patient.name} 的报警需要关注`);
-
   // 通过WebSocket通知医生
   emitAlert({
     type: 'ALERT_ESCALATED',
@@ -278,7 +289,10 @@ const escalateAlert = async (alertId) => {
       patientName: patient.name,
       bedNumber: patient.bed_number,
       alertLevel: alert.alert_level,
+      alertContent: alert.alert_content,
       doctorId: patient.attending_doctor_id,
+      status: '已升级',
+      timestamp: new Date(),
       message: '报警已超时未处理，已升级通知'
     }
   });

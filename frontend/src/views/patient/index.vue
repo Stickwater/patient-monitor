@@ -13,6 +13,7 @@
         >
           <template #prefix><el-icon><Search /></el-icon></template>
         </el-input>
+        <el-button type="primary" @click="loadPatients">搜索</el-button>
         <el-button type="primary" @click="handleAdd">新增患者</el-button>
       </div>
     </div>

@@ -50,6 +50,14 @@
               {{ patient.status === 'admitted' ? '在院' : '出院' }}
             </el-tag>
           </div>
+          <div class="info-item">
+            <span class="label">病史</span>
+            <span class="value">{{ patient.medical_history || '无记录' }}</span>
+          </div>
+          <div class="info-item">
+            <span class="label">过敏史</span>
+            <span class="value" :class="{ 'text-danger': patient.allergy }">{{ patient.allergy || '无已知过敏' }}</span>
+          </div>
         </div>
       </div>
 
@@ -153,7 +161,77 @@
         </el-table>
         <el-empty v-else description="暂无报告" :image-size="80" />
       </div>
+
+      <!-- 诊疗建议 -->
+      <div class="info-card" v-if="userStore.isDoctor || userStore.isNurse">
+        <div class="card-header">
+          <span>诊疗建议</span>
+          <el-button v-if="userStore.isDoctor" type="primary" size="small" @click="showAdviceDialog">
+            录入建议
+          </el-button>
+        </div>
+        <el-table v-if="advices.length" :data="advices" stripe>
+          <el-table-column prop="title" label="标题" min-width="150" />
+          <el-table-column prop="type" label="类型" width="90">
+            <template #default="{ row }">
+              <el-tag :type="adviceTypeTag(row.type)" size="small">{{ adviceTypeName(row.type) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="content" label="内容" min-width="200" show-overflow-tooltip />
+          <el-table-column prop="doctor.real_name" label="录入医生" width="100" />
+          <el-table-column prop="create_time" label="录入时间" width="160">
+            <template #default="{ row }">
+              {{ formatDateTime(row.create_time) }}
+            </template>
+          </el-table-column>
+          <el-table-column v-if="userStore.isDoctor" label="操作" width="80">
+            <template #default="{ row }">
+              <el-button type="danger" link size="small" @click="deleteAdvice(row)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-empty v-else description="暂无诊疗建议" :image-size="80" />
+      </div>
     </div>
+
+    <!-- 诊疗建议录入弹窗 -->
+    <el-dialog v-model="adviceVisible" title="录入诊疗建议" width="500px">
+      <el-form ref="adviceFormRef" :model="adviceForm" :rules="adviceRules" label-width="80px">
+        <el-form-item label="建议类型" prop="type">
+          <el-select v-model="adviceForm.type" style="width: 100%">
+            <el-option label="治疗方案" value="treatment" />
+            <el-option label="饮食指导" value="diet" />
+            <el-option label="康复事项" value="rehabilitation" />
+            <el-option label="健康建议" value="health" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="标题" prop="title">
+          <el-input v-model="adviceForm.title" placeholder="请输入建议标题" />
+        </el-form-item>
+        <el-form-item label="内容" prop="content">
+          <el-input v-model="adviceForm.content" type="textarea" rows="4" placeholder="请输入建议内容" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="adviceVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitAdvice">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 报告详情弹窗 -->
+    <el-dialog v-model="reportDetailVisible" title="报告详情" width="700px">
+      <div v-if="currentReport" class="report-detail-popup">
+        <el-descriptions :column="1" border>
+          <el-descriptions-item label="报告标题">{{ currentReport.title }}</el-descriptions-item>
+          <el-descriptions-item label="患者">{{ currentReport.patientName }}</el-descriptions-item>
+          <el-descriptions-item label="时间">
+            {{ formatDateTime(currentReport.start_time) }} 至 {{ formatDateTime(currentReport.end_time) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="版本">{{ currentReport.version }}</el-descriptions-item>
+        </el-descriptions>
+        <pre class="report-content-popup" v-if="currentReport.content">{{ currentReport.content }}</pre>
+      </div>
+    </el-dialog>
 
     <!-- 编辑弹窗 -->
     <el-dialog v-model="dialogVisible" title="编辑患者" width="500px">
@@ -183,6 +261,12 @@
             />
           </el-select>
         </el-form-item>
+        <el-form-item label="病史">
+          <el-input v-model="form.medicalHistory" type="textarea" rows="2" placeholder="请输入病史" />
+        </el-form-item>
+        <el-form-item label="过敏史">
+          <el-input v-model="form.allergy" placeholder="请输入过敏史（如：青霉素过敏）" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -197,11 +281,14 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getPatientById, getLatestVital, updatePatient, getDoctors } from '@/api/patient'
 import { getAlertsByPatient } from '@/api/vital'
-import { getReports } from '@/api/report'
-import { ElMessage } from 'element-plus'
+import { getReports, getReportById } from '@/api/report'
+import { getAdvicesByPatient, createAdvice, deleteAdvice as deleteAdviceApi } from '@/api/advice'
+import { useUserStore } from '@/stores/user'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 const ArrowLeft = 'ArrowLeft'
 
 const loading = ref(false)
@@ -210,15 +297,32 @@ const latestVital = ref(null)
 const alerts = ref([])
 const reports = ref([])
 const doctors = ref([])
+const advices = ref([])
+const reportDetailVisible = ref(false)
+const currentReport = ref(null)
 
 const dialogVisible = ref(false)
+const adviceVisible = ref(false)
+const adviceFormRef = ref()
+const adviceForm = reactive({
+  type: 'treatment',
+  title: '',
+  content: ''
+})
+const adviceRules = {
+  type: [{ required: true, message: '请选择建议类型', trigger: 'change' }],
+  title: [{ required: true, message: '请输入标题', trigger: 'blur' }],
+  content: [{ required: true, message: '请输入内容', trigger: 'blur' }]
+}
 const formRef = ref()
 const form = reactive({
   name: '',
   gender: 'M',
   age: 30,
   bedNumber: '',
-  attendingDoctorId: ''
+  attendingDoctorId: '',
+  medicalHistory: '',
+  allergy: ''
 })
 
 const rules = {
@@ -233,19 +337,21 @@ const loadData = async () => {
   const patientId = route.params.id
 
   try {
-    const [patientRes, vitalRes, alertsRes, reportsRes, doctorsRes] = await Promise.all([
+    const [patientRes, vitalRes, alertsRes, reportsRes, doctorsRes, advicesRes] = await Promise.all([
       getPatientById(patientId),
       getLatestVital(patientId).catch(() => ({ data: null })),
       getAlertsByPatient(patientId).catch(() => ({ data: { list: [] } })),
       getReports({ patientId, size: 5 }).catch(() => ({ data: { list: [] } })),
-      getDoctors().catch(() => ({ data: [] }))
+      getDoctors().catch(() => ({ data: [] })),
+      getAdvicesByPatient(patientId).catch(() => ({ data: [] }))
     ])
 
     patient.value = patientRes.data
-    latestVital.value = vitalRes.data
+    latestVital.value = vitalRes.data?.latestVital || vitalRes.data
     alerts.value = alertsRes.data?.list?.slice(0, 5) || []
     reports.value = reportsRes.data?.list || []
     doctors.value = doctorsRes.data || []
+    advices.value = advicesRes.data || []
   } catch (error) {
     ElMessage.error('加载患者详情失败')
     console.error(error)
@@ -264,6 +370,8 @@ const handleEdit = () => {
   form.age = patient.value.age
   form.bedNumber = patient.value.bed_number
   form.attendingDoctorId = patient.value.attending_doctor_id
+  form.medicalHistory = patient.value.medical_history || ''
+  form.allergy = patient.value.allergy || ''
   dialogVisible.value = true
 }
 
@@ -275,7 +383,9 @@ const submitForm = async () => {
       gender: form.gender,
       age: form.age,
       bedNumber: form.bedNumber,
-      attendingDoctorId: form.attendingDoctorId
+      attendingDoctorId: form.attendingDoctorId,
+      medicalHistory: form.medicalHistory,
+      allergy: form.allergy
     })
     ElMessage.success('更新成功')
     dialogVisible.value = false
@@ -289,8 +399,61 @@ const goToReports = () => {
   router.push({ path: '/reports', query: { patientId: patient.value.patient_id } })
 }
 
-const viewReport = (row) => {
-  router.push(`/report/${row.report_id}`)
+const viewReport = async (row) => {
+  try {
+    const res = await getReportById(row.report_id)
+    currentReport.value = res.data
+    reportDetailVisible.value = true
+  } catch (error) {
+    ElMessage.error('加载报告详情失败')
+  }
+}
+
+const showAdviceDialog = () => {
+  adviceForm.type = 'treatment'
+  adviceForm.title = ''
+  adviceForm.content = ''
+  adviceVisible.value = true
+}
+
+const submitAdvice = async () => {
+  try {
+    await adviceFormRef.value.validate()
+    await createAdvice({
+      patientId: patient.value.patient_id,
+      type: adviceForm.type,
+      title: adviceForm.title,
+      content: adviceForm.content
+    })
+    ElMessage.success('诊疗建议已录入')
+    adviceVisible.value = false
+    loadData()
+  } catch (error) {
+    if (error !== false) {
+      ElMessage.error('录入失败')
+    }
+  }
+}
+
+const deleteAdvice = async (row) => {
+  try {
+    await ElMessageBox.confirm('确定删除该诊疗建议？', '提示', { type: 'warning' })
+    await deleteAdviceApi(row.advice_id)
+    ElMessage.success('已删除')
+    loadData()
+  } catch (error) {
+    if (error !== 'cancel') console.error(error)
+  }
+}
+
+const adviceTypeTag = (type) => {
+  const map = { treatment: 'danger', diet: 'success', rehabilitation: 'warning', health: 'info' }
+  return map[type] || 'info'
+}
+
+const adviceTypeName = (type) => {
+  const map = { treatment: '治疗', diet: '饮食', rehabilitation: '康复', health: '健康' }
+  return map[type] || type
 }
 
 const formatDate = (date) => {
@@ -471,5 +634,17 @@ onMounted(() => {
   .vital-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.report-content-popup {
+  background: var(--bg-light);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  white-space: pre-wrap;
+  font-size: var(--text-sm);
+  line-height: 1.8;
+  max-height: 400px;
+  overflow-y: auto;
+  margin-top: var(--space-4);
 }
 </style>

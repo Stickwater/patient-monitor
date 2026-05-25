@@ -163,7 +163,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, nextTick } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { getReports, generateReport, getReportById } from '@/api/report'
 import { getPatients } from '@/api/patient'
 import { ElMessage } from 'element-plus'
@@ -198,6 +198,7 @@ const detailVisible = ref(false)
 const currentReport = ref(null)
 const chartRef = ref(null)
 let chart = null
+let refreshTimer = null
 
 const loadPatients = async () => {
   try {
@@ -308,6 +309,12 @@ const formatDateTime = (datetime) => {
 onMounted(() => {
   loadPatients()
   loadReports()
+  // 每30秒自动刷新报告列表
+  refreshTimer = setInterval(loadReports, 30000)
+})
+
+onUnmounted(() => {
+  if (refreshTimer) clearInterval(refreshTimer)
 })
 </script>
 

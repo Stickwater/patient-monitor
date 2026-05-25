@@ -24,4 +24,8 @@ module.exports = (app) => {
 
   // 报告路由
   app.use('/api/v1/reports', reportRoutes);
+
+  // 诊疗建议路由
+  const treatmentAdviceRoutes = require('./treatment-advice');
+  app.use('/api/v1', treatmentAdviceRoutes);
 };

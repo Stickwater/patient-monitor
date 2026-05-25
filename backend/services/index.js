@@ -5,6 +5,7 @@ const vitalSignService = require('./VitalSignService');
 const alertService = require('./AlertService');
 const thresholdService = require('./ThresholdService');
 const reportService = require('./ReportService');
+const treatmentAdviceService = require('./TreatmentAdviceService');
 
 module.exports = {
   authService,
@@ -12,5 +13,6 @@ module.exports = {
   vitalSignService,
   alertService,
   thresholdService,
-  reportService
+  reportService,
+  treatmentAdviceService
 };

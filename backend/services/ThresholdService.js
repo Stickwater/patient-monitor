@@ -141,31 +141,40 @@ const validateThreshold = (data, patientAge) => {
     });
   }
 
-  // 阈值必须符合医学标准范围
+  // 阈值医学标准范围校验（放宽为建议性，仅严重偏离时警告）
   const medicalRanges = getMedicalRanges(patientAge);
 
   if (data.pulseMin !== undefined && data.pulseMax !== undefined) {
-    const inRange = data.pulseMin >= medicalRanges.pulse.min && data.pulseMax <= medicalRanges.pulse.max;
+    // 放宽校验：只要范围不超过极端值即可，医学标准仅作参考
+    const tooLow = data.pulseMin < 30 || data.pulseMax < 30;
+    const tooHigh = data.pulseMin > 220 || data.pulseMax > 220;
+    const inRange = !tooLow && !tooHigh && data.pulseMin < data.pulseMax;
     if (!inRange) {
-      errors.push(`脉搏范围应符合医学标准（${medicalRanges.pulse.min}-${medicalRanges.pulse.max}次/分钟）`);
+      errors.push(`脉搏范围不合理：应设置在30-220次/分钟之间，且上限大于下限`);
     }
+    // 仅作建议性提示，不拦截
+    const medicalNote = (data.pulseMin < medicalRanges.pulse.min || data.pulseMax > medicalRanges.pulse.max)
+      ? `（医学参考：${medicalRanges.pulse.min}-${medicalRanges.pulse.max}次/分钟，但可根据患者情况个性化设置）` : '';
     checks.push({
       indicator: 'pulse_medical',
-      isValid: inRange,
-      message: inRange ? '符合医学标准' : `应符合${medicalRanges.pulse.min}-${medicalRanges.pulse.max}次/分钟`
+      isValid: true,
+      message: medicalNote || '符合常规医学标准'
     });
   }
 
   if (data.temperatureMin !== undefined && data.temperatureMax !== undefined) {
-    const inRange = data.temperatureMin >= medicalRanges.temperature.min && 
-                    data.temperatureMax <= medicalRanges.temperature.max;
+    const tooLow = data.temperatureMin < 30 || data.temperatureMax < 30;
+    const tooHigh = data.temperatureMin > 45 || data.temperatureMax > 45;
+    const inRange = !tooLow && !tooHigh && data.temperatureMin < data.temperatureMax;
     if (!inRange) {
-      errors.push(`体温范围应符合医学标准（${medicalRanges.temperature.min}-${medicalRanges.temperature.max}°C）`);
+      errors.push(`体温范围不合理：应设置在30-45°C之间，且上限大于下限`);
     }
+    const medicalNote = (data.temperatureMin < medicalRanges.temperature.min || data.temperatureMax > medicalRanges.temperature.max)
+      ? `（医学参考：${medicalRanges.temperature.min}-${medicalRanges.temperature.max}°C，但可根据患者情况个性化设置）` : '';
     checks.push({
       indicator: 'temperature_medical',
-      isValid: inRange,
-      message: inRange ? '符合医学标准' : `应符合${medicalRanges.temperature.min}-${medicalRanges.temperature.max}°C`
+      isValid: true,
+      message: medicalNote || '符合常规医学标准'
     });
   }
 

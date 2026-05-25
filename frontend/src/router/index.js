@@ -61,6 +61,12 @@ const patientRoutes = [
     name: 'MyReports',
     component: () => import('@/views/patient-vital/my-reports.vue'),
     meta: { title: '我的报告', icon: 'Document', roles: ['patient'] }
+  },
+  {
+    path: '/health-advice',
+    name: 'HealthAdvice',
+    component: () => import('@/views/patient-vital/health-advice.vue'),
+    meta: { title: '健康建议', icon: 'Notebook', roles: ['patient'] }
   }
 ]
 

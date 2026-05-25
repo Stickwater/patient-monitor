@@ -23,3 +23,7 @@ export const getLatestVital = (patientId) => {
 export const getDoctors = () => {
   return request.get('/auth/doctors')
 }
+
+export const getMyInfo = () => {
+  return request.get('/patients/me')
+}

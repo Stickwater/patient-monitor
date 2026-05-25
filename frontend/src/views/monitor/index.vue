@@ -54,51 +54,93 @@
 
     <!-- 患者卡片列表 -->
     <div class="patient-grid">
-      <div 
-        v-for="patient in filteredPatients" 
+      <div
+        v-for="patient in filteredPatients"
         :key="patient.patient_id"
         class="patient-card"
-        :class="{ 'has-alert': patient.hasAlert }"
+        :class="{ 'card-alert': patient.hasAlert }"
       >
+        <div class="card-status-bar" :class="patient.hasAlert ? 'bar-danger' : 'bar-success'"></div>
+
         <div class="card-header">
           <div class="patient-info">
             <span class="patient-name">{{ patient.name }}</span>
             <span class="bed-number">{{ patient.bed_number }}</span>
           </div>
-          <el-tag :type="patient.hasAlert ? 'danger' : 'success'" size="small">
-            {{ patient.hasAlert ? '异常' : '正常' }}
+          <el-tag
+            :type="patient.hasAlert ? 'danger' : 'success'"
+            size="small"
+            effect="dark"
+            round
+          >
+            {{ patient.hasAlert ? '⚠ 异常' : '✓ 正常' }}
           </el-tag>
         </div>
-        
-        <div class="vital-data">
-          <div class="vital-item">
+
+        <div class="vital-grid">
+          <div class="vital-cell" :class="{ 'cell-abnormal': patient.pulseAbnormal }">
             <span class="vital-label">脉搏</span>
-            <span class="vital-value" :class="{ abnormal: patient.pulseAbnormal }">
-              {{ patient.latestVital?.pulse || '--' }}
-              <span class="unit">次/分</span>
+            <span class="vital-value">
+              {{ patient.latestVital?.pulse ?? '--' }}
+            </span>
+            <span class="vital-unit">次/分</span>
+            <span v-if="patient.pulseAbnormal && patient.thresholdInfo" class="vital-alert-tip">
+              {{ patient.latestVital?.pulse < patient.thresholdInfo.pulse_min ? '↓偏低' : '↑偏高' }}
             </span>
           </div>
-          <div class="vital-item">
+          <div class="vital-cell" :class="{ 'cell-abnormal': patient.tempAbnormal }">
             <span class="vital-label">体温</span>
-            <span class="vital-value" :class="{ abnormal: patient.tempAbnormal }">
-              {{ patient.latestVital?.temperature || '--' }}
-              <span class="unit">°C</span>
+            <span class="vital-value">
+              {{ patient.latestVital?.temperature ?? '--' }}
+            </span>
+            <span class="vital-unit">°C</span>
+            <span v-if="patient.tempAbnormal && patient.thresholdInfo" class="vital-alert-tip">
+              {{ patient.latestVital?.temperature < patient.thresholdInfo.temperature_min ? '↓偏低' : '↑偏高' }}
             </span>
           </div>
-          <div class="vital-item">
+          <div class="vital-cell" :class="{ 'cell-abnormal': patient.bpAbnormal }">
             <span class="vital-label">血压</span>
-            <span class="vital-value" :class="{ abnormal: patient.bpAbnormal }">
-              {{ patient.latestVital?.blood_pressure || '--' }}
+            <span class="vital-value">
+              {{ patient.latestVital?.blood_pressure ?? '--' }}
+            </span>
+            <span class="vital-unit">mmHg</span>
+          </div>
+          <div class="vital-cell" :class="{ 'cell-abnormal': patient.ecgAbnormal }">
+            <span class="vital-label">心电图</span>
+            <span class="vital-value">
+              {{ patient.latestVital?.ecg ?? '--' }}
             </span>
           </div>
         </div>
-        
+
+        <div class="mini-chart">
+          <svg viewBox="0 0 100 30" preserveAspectRatio="none">
+            <polyline
+              v-if="patient.pulseTrend && patient.pulseTrend.length > 1"
+              :points="getSparklinePoints(patient.pulseTrend)"
+              fill="none"
+              :stroke="patient.hasAlert ? '#ef4444' : '#3b82f6'"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+            <text v-else x="50" y="18" text-anchor="middle" font-size="8" fill="#9ca3af">暂无数据</text>
+          </svg>
+        </div>
+
+        <!-- 异常原因汇总 -->
+        <div v-if="patient.hasAlert && patient.thresholdInfo" class="alert-reason-box">
+          <span v-if="patient.pulseAbnormal">脉搏{{ patient.latestVital?.pulse }}次/分（阈值{{ patient.thresholdInfo.pulse_min }}{{ patient.thresholdInfo.pulse_max ? '-'+patient.thresholdInfo.pulse_max : '' }}）</span>
+          <span v-if="patient.tempAbnormal"> 体温{{ patient.latestVital?.temperature }}°C（阈值{{ patient.thresholdInfo.temperature_min }}{{ patient.thresholdInfo.temperature_max ? '-'+patient.thresholdInfo.temperature_max : '' }}）</span>
+          <span v-if="patient.bpAbnormal"> 血压{{ patient.latestVital?.blood_pressure }}mmHg</span>
+          <span v-if="patient.ecgAbnormal"> 心电图{{ patient.latestVital?.ecg }}</span>
+        </div>
+
         <div class="card-footer">
           <span class="update-time">
-            更新于 {{ formatTime(patient.latestVital?.collect_time) }}
+            {{ formatTime(patient.latestVital?.collect_time) }}
           </span>
-          <el-button type="primary" link @click="showDetail(patient)">
-            查看详情
+          <el-button type="primary" link size="small" @click="showDetail(patient)">
+            查看趋势
           </el-button>
         </div>
       </div>
@@ -107,7 +149,7 @@
     <el-empty v-if="patients.length === 0" description="暂无患者数据" />
 
     <!-- 患者详情弹窗 -->
-    <el-dialog v-model="detailVisible" title="患者详情" width="800px">
+    <el-dialog v-model="detailVisible" title="患者详情" width="800px" @opened="onDialogOpened">
       <div v-if="currentPatient" class="patient-detail">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="患者姓名">{{ currentPatient.name }}</el-descriptions-item>
@@ -126,14 +168,21 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { getPatients, getLatestVital } from '@/api/patient'
-import { getAlertStats } from '@/api/alert'
+import { getAlertStats, getAlerts } from '@/api/alert'
 import { getTrendData } from '@/api/vital'
+import { getThreshold } from '@/api/threshold'
+import { useUserStore } from '@/stores/user'
+import WebSocketClient from '@/utils/websocket'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
 
 const Refresh = 'Refresh'
+
+const userStore = useUserStore()
+let ws = null
+let refreshTimer = null
 
 const patients = ref([])
 const alertStats = ref({})
@@ -156,18 +205,62 @@ const loadPatients = async () => {
   try {
     const res = await getPatients({ status: 'admitted', size: 100 })
     const list = res.data.list || []
-    
-    for (const patient of list) {
+
+    // 只获取【活跃报警】患者ID：待处理/已确认/已升级（已解除的历史记录不纳入实时判定）
+    let alertPatientIds = new Set()
+    try {
+      const [r1, r2, r3] = await Promise.all([
+        getAlerts({ status: '待处理', size: 200 }),
+        getAlerts({ status: '已确认', size: 200 }),
+        getAlerts({ status: '已升级', size: 200 })
+      ])
+      ;[...(r1.data.list || []), ...(r2.data.list || []), ...(r3.data.list || [])]
+        .forEach(a => { if (a.patientId) alertPatientIds.add(a.patientId) })
+    } catch {}
+
+    // 并行加载每个患者的最新体征和24小时趋势
+    await Promise.all(list.map(async (patient) => {
       try {
-        const vitalRes = await getLatestVital(patient.patient_id)
-        patient.latestVital = vitalRes.data.latestVital
-        patient.hasAlert = vitalRes.data.status === 'abnormal'
+        const [vitalRes, trendRes] = await Promise.all([
+          getLatestVital(patient.patient_id),
+          getTrendData(patient.patient_id, { hours: 24 })
+        ])
+        patient.latestVital = vitalRes.data.latestVital || null
+        const trend = trendRes.data.trendData || {}
+        patient.pulseTrend = (trend.pulse || []).slice(-20)
+
+        // 阈值比对确定具体异常指标（所有人统一比对）
+        let hasAlertFromThreshold = false
+        if (patient.latestVital) {
+          try {
+            const thresholdRes = await getThreshold(patient.patient_id).catch(() => null)
+            if (thresholdRes?.data) {
+              const t = thresholdRes.data
+              patient.thresholdInfo = t
+              patient.pulseAbnormal = t.pulse_min != null && (patient.latestVital.pulse < t.pulse_min || patient.latestVital.pulse > t.pulse_max)
+              patient.tempAbnormal = t.temperature_min != null && (patient.latestVital.temperature < t.temperature_min || patient.latestVital.temperature > t.temperature_max)
+              const bp = patient.latestVital.blood_pressure?.split('/')
+              const sysAbnormal = bp && t.bp_systolic_min != null && (parseInt(bp[0]) < t.bp_systolic_min || parseInt(bp[0]) > t.bp_systolic_max)
+              const diaAbnormal = bp && t.bp_diastolic_min != null && (parseInt(bp[1]) < t.bp_diastolic_min || parseInt(bp[1]) > t.bp_diastolic_max)
+              patient.bpAbnormal = !!(sysAbnormal || diaAbnormal)
+              patient.ecgAbnormal = patient.latestVital?.ecg && t.ecg_rules && t.ecg_rules.length > 0 && patient.latestVital.ecg !== '正常'
+              hasAlertFromThreshold = patient.pulseAbnormal || patient.tempAbnormal || patient.bpAbnormal || patient.ecgAbnormal
+            }
+          } catch {}
+        }
+
+        // 实时面板异常状态只看【当前体征是否超阈值】，不直接被报警流程记录绑架
+        patient.hasAlert = hasAlertFromThreshold
+
+        // 额外标记是否有活跃报警记录（用于显示流程提醒）
+        patient.hasActiveAlertRecord = alertPatientIds.has(patient.patient_id)
       } catch {
         patient.latestVital = null
         patient.hasAlert = false
+        patient.pulseTrend = []
       }
-    }
-    
+    }))
+
     patients.value = list
   } catch (error) {
     ElMessage.error('加载患者数据失败')
@@ -183,40 +276,92 @@ const loadAlertStats = async () => {
   }
 }
 
-const showDetail = async (patient) => {
+const showDetail = (patient) => {
   currentPatient.value = patient
   detailVisible.value = true
-  
+  // 图表在 @opened 事件中加载（dialog完全渲染后）
+}
+
+const onDialogOpened = async () => {
   await nextTick()
-  loadTrendChart(patient.patient_id)
+  if (currentPatient.value) {
+    setTimeout(() => {
+      loadTrendChart(currentPatient.value.patient_id)
+    }, 200)
+  }
 }
 
 const loadTrendChart = async (patientId) => {
   try {
     const res = await getTrendData(patientId, { hours: 24 })
-    const { pulse, temperature, timestamps } = res.data.trendData
+    const { pulse, temperature, bloodPressure, timestamps } = res.data.trendData || {}
     
-    if (!chart) {
-      chart = echarts.init(chartRef.value)
+    if (!chartRef.value) return
+    
+    // 销毁旧图表实例
+    if (chart) {
+      chart.dispose()
+      chart = null
+    }
+    
+    chart = echarts.init(chartRef.value)
+    
+    const timeLabels = (timestamps && timestamps.length) ? timestamps.map(t => {
+      const d = new Date(t)
+      return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0')
+    }) : []
+    
+    const systolicData = []
+    const diastolicData = []
+    if (bloodPressure && bloodPressure.length) {
+      bloodPressure.forEach(bp => {
+        if (!bp) { systolicData.push(null); diastolicData.push(null); return }
+        const parts = String(bp).split('/')
+        systolicData.push(parts[0] ? parseInt(parts[0]) : null)
+        diastolicData.push(parts[1] ? parseInt(parts[1]) : null)
+      })
     }
     
     chart.setOption({
-      tooltip: { trigger: 'axis' },
-      legend: { data: ['脉搏', '体温'] },
-      grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-      xAxis: { type: 'category', data: timestamps.map(t => new Date(t).toLocaleTimeString()) },
+      tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+      legend: { data: ['脉搏', '体温', '收缩压', '舒张压'], top: 0 },
+      grid: [
+        { left: '14%', right: '6%', top: '10%', height: '22%' },
+        { left: '14%', right: '6%', top: '40%', height: '22%' },
+        { left: '14%', right: '6%', top: '70%', height: '22%' }
+      ],
+      xAxis: [
+        { type: 'category', data: timeLabels, gridIndex: 0, axisLabel: { show: false }, boundaryGap: false },
+        { type: 'category', data: timeLabels, gridIndex: 1, axisLabel: { show: false }, boundaryGap: false },
+        { type: 'category', data: timeLabels, gridIndex: 2, axisLabel: { fontSize: 10, interval: Math.max(0, Math.floor(timeLabels.length / 6) - 1) }, boundaryGap: false }
+      ],
       yAxis: [
-        { type: 'value', name: '脉搏', min: 40, max: 120 },
-        { type: 'value', name: '体温', min: 35, max: 40 }
+        { type: 'value', name: '脉搏', gridIndex: 0, min: 40, max: 130, nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 9 } },
+        { type: 'value', name: '体温', gridIndex: 1, min: 35, max: 42, nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 9 } },
+        { type: 'value', name: '血压', gridIndex: 2, min: 40, max: 180, nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 9 } }
       ],
       series: [
-        { name: '脉搏', type: 'line', data: pulse },
-        { name: '体温', type: 'line', yAxisIndex: 1, data: temperature }
+        { name: '脉搏', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: pulse || [], smooth: true, symbol: 'none', lineStyle: { width: 2, color: '#3b82f6' }, itemStyle: { color: '#3b82f6' } },
+        { name: '体温', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data: temperature || [], smooth: true, symbol: 'none', lineStyle: { width: 2, color: '#22c55e' }, itemStyle: { color: '#22c55e' } },
+        { name: '收缩压', type: 'line', xAxisIndex: 2, yAxisIndex: 2, data: systolicData, smooth: true, symbol: 'none', lineStyle: { width: 2, color: '#f59e0b', type: 'dashed' }, itemStyle: { color: '#f59e0b' } },
+        { name: '舒张压', type: 'line', xAxisIndex: 2, yAxisIndex: 2, data: diastolicData, smooth: true, symbol: 'none', lineStyle: { width: 2, color: '#ef4444', type: 'dashed' }, itemStyle: { color: '#ef4444' } }
       ]
     })
   } catch (error) {
     console.error('加载趋势图失败:', error)
   }
+}
+
+const getSparklinePoints = (data) => {
+  if (!data || data.length < 2) return ''
+  const min = Math.min(...data)
+  const max = Math.max(...data)
+  const range = max - min || 1
+  return data.map((v, i) => {
+    const x = (i / (data.length - 1)) * 100
+    const y = 30 - ((v - min) / range) * 26 - 2
+    return `${x},${y}`
+  }).join(' ')
 }
 
 const formatTime = (time) => {
@@ -232,147 +377,218 @@ const formatDate = (date) => {
 onMounted(() => {
   loadPatients()
   loadAlertStats()
-  setInterval(loadPatients, 30000)
+  refreshTimer = setInterval(loadPatients, 30000)
+  
+  // WebSocket实时更新
+  if (userStore.isNurse || userStore.isDoctor) {
+    ws = new WebSocketClient({
+      token: userStore.token,
+      onMessage: (data) => {
+        if (data.type === 'VITAL_UPDATE') {
+          // 实时体征数据更新对应患者卡片
+          const patient = patients.value.find(p => p.patient_id === data.patientId)
+          if (patient && data.vital) {
+            patient.latestVital = data.vital
+          }
+        }
+        if (data.type === 'ALERT') {
+          // 收到新报警时刷新面板
+          loadPatients()
+          loadAlertStats()
+        }
+      }
+    })
+  }
+})
+
+onUnmounted(() => {
+  if (refreshTimer) clearInterval(refreshTimer)
+  ws?.close()
 })
 </script>
 
 <style scoped>
-.monitor-container { padding: 0; }
+.monitor-container { padding: 0; max-width: 1400px; margin: 0 auto; }
 
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--space-6);
+  margin-bottom: 20px;
 }
+.page-header h2 { margin: 0; font-size: 22px; font-weight: 700; color: #1e293b; }
+.header-actions { display: flex; gap: 10px; align-items: center; }
 
-.page-header h2 { margin: 0; font-size: var(--text-xl); font-weight: 600; }
-
-.header-actions { display: flex; gap: var(--space-3); }
-
+/* 统计行 */
 .stats-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-5);
-  margin-bottom: var(--space-6);
+  gap: 14px;
+  margin-bottom: 20px;
 }
-
 .stat-card {
-  background: var(--bg-white);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: var(--space-5);
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px 20px;
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  gap: 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
 }
-
 .stat-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: var(--radius-md);
+  width: 48px; height: 48px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 20px;
 }
+.stat-icon-primary { background: #eff6ff; color: #3b82f6; }
+.stat-icon-danger { background: #fef2f2; color: #ef4444; }
+.stat-icon-success { background: #f0fdf4; color: #22c55e; }
+.stat-icon-warning { background: #fefce8; color: #f59e0b; }
+.stat-value { font-size: 26px; font-weight: 700; color: #0f172a; line-height: 1.1; }
+.text-danger { color: #ef4444; }
+.text-success { color: #22c55e; }
+.text-warning { color: #f59e0b; }
+.stat-label { color: #64748b; font-size: 13px; margin-top: 2px; }
 
-.stat-icon-primary { background: var(--bg-light); color: var(--color-primary); }
-.stat-icon-danger { background: #fef2f2; color: var(--color-error); }
-.stat-icon-success { background: #f0fdf4; color: var(--color-success); }
-.stat-icon-warning { background: #fef3c7; color: var(--color-warning); }
-
-.stat-value {
-  font-size: var(--text-2xl);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.text-danger { color: var(--color-error); }
-.text-success { color: var(--color-success); }
-.text-warning { color: var(--color-warning); }
-
-.stat-label { color: var(--text-secondary); font-size: var(--text-sm); margin-top: var(--space-1); }
-
+/* 卡片网格 */
 .patient-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: var(--space-5);
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  gap: 16px;
 }
 
+/* ========== 患者卡片 ========== */
 .patient-card {
-  background: var(--bg-white);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: var(--space-5);
-  transition: box-shadow 0.2s;
+  position: relative;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0;
+  overflow: hidden;
+  transition: box-shadow .2s, transform .15s;
+  box-shadow: 0 1px 4px rgba(0,0,0,.05);
 }
-
 .patient-card:hover {
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 4px 16px rgba(0,0,0,.1);
+  transform: translateY(-1px);
 }
 
-.patient-card.has-alert {
-  border-color: var(--color-error);
-  animation: alertPulse 2s infinite;
+/* 左侧状态竖条 */
+.card-status-bar {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  border-radius: 12px 0 0 12px;
+}
+.bar-success { background: #22c55e; }
+.bar-danger { background: #ef4444; }
+
+/* 异常卡片额外样式 */
+.patient-card.card-alert {
+  border-color: #fecaca;
+  background: linear-gradient(135deg, #fff5f5 0%, #fff 30%);
 }
 
-@keyframes alertPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-  50% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
-}
-
+/* 卡片内容区 */
 .card-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--space-4);
+  align-items: flex-start;
+  padding: 16px 18px 0 22px;
 }
-
 .patient-info { display: flex; flex-direction: column; }
+.patient-name { font-size: 17px; font-weight: 700; color: #0f172a; }
+.bed-number { font-size: 12px; color: #94a3b8; margin-top: 2px; }
 
-.patient-name {
-  font-size: var(--text-lg);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.bed-number {
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-  margin-top: var(--space-1);
-}
-
-.vital-data {
+/* 体征四宫格 */
+.vital-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-4);
-  padding: var(--space-4) 0;
-  border-top: 1px solid var(--border-color);
-  border-bottom: 1px solid var(--border-color);
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  padding: 14px 8px;
+  margin: 8px 12px 0;
+  border-top: 1px solid #f1f5f9;
+  border-bottom: 1px solid #f1f5f9;
 }
-
-.vital-item { text-align: center; }
-
-.vital-label { display: block; font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--space-2); }
-
+.vital-cell {
+  text-align: center;
+  padding: 6px 2px;
+  border-radius: 8px;
+  position: relative;
+  transition: background .15s;
+}
+.vital-cell.cell-abnormal {
+  background: #fef2f2;
+}
+.vital-label {
+  display: block;
+  font-size: 11px;
+  color: #94a3b8;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
 .vital-value {
-  font-size: var(--text-xl);
+  font-size: 22px;
+  font-weight: 700;
+  color: #1e293b;
+  display: block;
+  line-height: 1.1;
+}
+.cell-abnormal .vital-value { color: #ef4444; }
+.vital-unit {
+  font-size: 10px;
+  color: #94a3b8;
+  font-weight: 400;
+  display: block;
+  margin-top: 1px;
+}
+.vital-alert-tip {
+  display: block;
+  font-size: 10px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #ef4444;
+  margin-top: 1px;
 }
 
-.vital-value.abnormal { color: var(--color-error); }
+/* 迷你趋势图 */
+.mini-chart {
+  height: 38px;
+  margin: 10px 18px 0;
+  border-radius: 6px;
+  background: #f8fafc;
+  overflow: hidden;
+}
+.mini-chart svg { width: 100%; height: 100%; display: block; }
 
-.vital-value .unit { font-size: var(--text-xs); font-weight: 400; color: var(--text-secondary); }
+/* 异常原因汇总 */
+.alert-reason-box {
+  margin: 8px 18px 0;
+  padding: 8px 12px;
+  background: #fef2f2;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #dc2626;
+  line-height: 1.6;
+  border-left: 3px solid #ef4444;
+}
 
+/* 底部 */
 .card-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: var(--space-3);
+  padding: 10px 18px 14px 22px;
+}
+.update-time {
+  font-size: 11px;
+  color: #94a3b8;
 }
 
-.update-time { font-size: var(--text-xs); color: var(--text-secondary); }
-
-.chart-container { width: 100%; height: 300px; }
+/* 弹窗图表 */
+.chart-container { width: 100%; height: 420px; }
 </style>
