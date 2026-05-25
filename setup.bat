@@ -7,7 +7,7 @@ echo.
 
 cd /d %~dp0
 
-echo [1/4] 设置生产环境 .env ...
+echo [1/6] 设置生产环境 .env ...
 cd backend
 if not exist .env (
     echo PORT=80 > .env
@@ -31,11 +31,11 @@ if not exist .env (
 )
 
 echo.
-echo [2/4] 安装依赖 ...
+echo [2/6] 安装依赖 ...
 call npm install
 
 echo.
-echo [3/4] 初始化数据库 ...
+echo [3/6] 初始化数据库 ...
 call node ..\scripts\initDb.js
 if %errorlevel% neq 0 (
     echo 数据库初始化失败，请检查 MySQL 服务是否启动！
@@ -65,6 +65,11 @@ echo.
 echo ========================================
 echo   部署完成！
 echo   访问: http://123.57.54.30
-echo   测试账号: doctor01 / 123456
+echo.
+echo   14名患者，4科室，72小时数据
+echo   测试账号(密码均为123456):
+echo     医生: doctor01/02/03/04
+echo     护士: nurse01/02/03/04
+echo     患者: patient01/02/03/04
 echo ========================================
 pause

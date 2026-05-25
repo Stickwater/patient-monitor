@@ -31,12 +31,24 @@ async function initDatabase() {
     const hash = await bcrypt.hash('123456', 10);
     console.log('密码哈希: ' + hash);
 
-    // 3. 插入用户数据
+    // 3. 插入用户数据（4医生 + 4护士 + 4患者 = 12账号）
     const insertUsers = `
 INSERT INTO users (user_id, username, password, role, real_name, phone, department, status) VALUES
+-- 医生（4人，4个科室）
 ('U2024001', 'doctor01', '${hash}', 'doctor', '张医生', '13800138001', '心内科', 'active'),
-('U2024002', 'nurse01', '${hash}', 'nurse', '王护士', '13800138003', '心内科', 'active'),
-('U2024003', 'patient01', '${hash}', 'patient', '患者张三', '13800138005', NULL, 'active');
+('U2024002', 'doctor02', '${hash}', 'doctor', '李医生', '13800138002', '呼吸科', 'active'),
+('U2024003', 'doctor03', '${hash}', 'doctor', '刘医生', '13800138003', '神经内科', 'active'),
+('U2024004', 'doctor04', '${hash}', 'doctor', '陈医生', '13800138004', '骨科', 'active'),
+-- 护士（4人）
+('U2024101', 'nurse01', '${hash}', 'nurse', '王护士', '13800138101', '心内科', 'active'),
+('U2024102', 'nurse02', '${hash}', 'nurse', '赵护士', '13800138102', '呼吸科', 'active'),
+('U2024103', 'nurse03', '${hash}', 'nurse', '孙护士', '13800138103', '神经内科', 'active'),
+('U2024104', 'nurse04', '${hash}', 'nurse', '钱护士', '13800138104', '骨科', 'active'),
+-- 患者账号（前4位患者可登录查看自身数据）
+('U2024201', 'patient01', '${hash}', 'patient', '张三', '13800138201', NULL, 'active'),
+('U2024202', 'patient02', '${hash}', 'patient', '李四', '13800138202', NULL, 'active'),
+('U2024203', 'patient03', '${hash}', 'patient', '王五', '13800138203', NULL, 'active'),
+('U2024204', 'patient04', '${hash}', 'patient', '赵六', '13800138204', NULL, 'active');
 `;
 
     sql += '\n' + insertUsers;
@@ -47,11 +59,12 @@ INSERT INTO users (user_id, username, password, role, real_name, phone, departme
 
     console.log('数据库初始化成功！');
     console.log('数据库: rjgc');
-    console.log('表: users, patients, vital_signs, thresholds, alerts, patient_logs, medical_reports, compare_results');
+    console.log('表: users, patients, vital_signs, thresholds, alerts, patient_logs, medical_reports, compare_results, treatment_advice');
     console.log('\n测试账号（密码均为 123456）:');
-    console.log('  doctor01   - 医生（张医生，心内科）');
-    console.log('  nurse01    - 护士（王护士，心内科）');
-    console.log('  patient01  - 患者（患者张三）');
+    console.log('  医生: doctor01/02/03/04（心内科/呼吸科/神经内科/骨科）');
+    console.log('  护士: nurse01/02/03/04');
+    console.log('  患者: patient01/02/03/04');
+    console.log('\n共14名住院患者，覆盖心内科5人、呼吸科3人、神经内科3人、骨科3人');
 
   } catch (error) {
     console.error('数据库初始化失败:', error.message);
