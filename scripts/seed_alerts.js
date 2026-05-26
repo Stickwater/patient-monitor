@@ -5,12 +5,17 @@ module.paths.unshift(path.join(__dirname, '..', 'backend', 'node_modules'));
 const mysql = require('mysql2/promise');
 require('dotenv').config({ path: path.join(__dirname, '..', 'backend', '.env') });
 
-function pickStatus() {
+const STATUS_CYCLE = ['待处理', '已确认', '已升级', '已解除'];
+
+// 每个患者的前4条报警按顺序分配四种状态，保证每种状态都有例子
+function pickStatus(patientAlertCount) {
+  if (patientAlertCount < 4) return STATUS_CYCLE[patientAlertCount];
+  // 第5条起随机，加重待处理比例
   const r = Math.random();
-  if (r < 0.55) return '待处理';  // 55%待处理，大量待办
-  if (r < 0.70) return '已确认';  // 15%
-  if (r < 0.90) return '已升级';  // 20%
-  return '已解除';                // 10%
+  if (r < 0.55) return '待处理';
+  if (r < 0.70) return '已确认';
+  if (r < 0.90) return '已升级';
+  return '已解除';
 }
 
 function pickLevel(deviation) {
@@ -98,7 +103,7 @@ async function seed() {
             ? (threshold.pulse_min - v.pulse) / threshold.pulse_min
             : (v.pulse - threshold.pulse_max) / threshold.pulse_max;
           const level = pickLevel(dev);
-          const status = pickStatus();
+          const status = pickStatus(patientAlertCount);
           const alertId = 'A' + Date.now() + Math.random().toString(36).substr(2,4);
           const h = status !== '待处理' && handlers.length ? handlers[Math.floor(Math.random() * handlers.length)] : null;
           await conn.query(
@@ -123,7 +128,7 @@ async function seed() {
             ? (parseFloat(threshold.temperature_min) - temp) / parseFloat(threshold.temperature_min)
             : (temp - parseFloat(threshold.temperature_max)) / parseFloat(threshold.temperature_max);
           const level = pickLevel(dev);
-          const status = pickStatus();
+          const status = pickStatus(patientAlertCount);
           const alertId = 'A' + Date.now() + Math.random().toString(36).substr(2,4);
           const h = status !== '待处理' && handlers.length ? handlers[Math.floor(Math.random() * handlers.length)] : null;
           await conn.query(
@@ -156,7 +161,7 @@ async function seed() {
               ? (sys < threshold.bp_systolic_min ? (threshold.bp_systolic_min - sys) / threshold.bp_systolic_min : (sys - threshold.bp_systolic_max) / threshold.bp_systolic_max)
               : (dia < threshold.bp_diastolic_min ? (threshold.bp_diastolic_min - dia) / threshold.bp_diastolic_min : (dia - threshold.bp_diastolic_max) / threshold.bp_diastolic_max);
             const level = pickLevel(dev);
-            const status = pickStatus();
+            const status = pickStatus(patientAlertCount);
             const alertId = 'A' + Date.now() + Math.random().toString(36).substr(2,4);
             const h = status !== '待处理' && handlers.length ? handlers[Math.floor(Math.random() * handlers.length)] : null;
             await conn.query(
