@@ -3,6 +3,7 @@ const { userDAO } = require('../dao');
 const { generateToken } = require('../config/jwt');
 const { BusinessError } = require('../middleware/errorHandler');
 const { v4: uuidv4 } = require('uuid');
+const cacheService = require('./CacheService');
 require('dotenv').config();
 
 const MAX_LOGIN_ATTEMPTS = parseInt(process.env.MAX_LOGIN_ATTEMPTS) || 5;
@@ -10,6 +11,12 @@ const LOCK_DURATION_MINUTES = parseInt(process.env.LOCK_DURATION_MINUTES) || 30;
 
 // 登录
 const login = async (username, password, rememberMe = false) => {
+  // Redis 限流：同一 IP/用户名 5分钟内最多尝试5次
+  const rateCheck = await cacheService.checkLoginRateLimit(username);
+  if (!rateCheck.allowed) {
+    throw new BusinessError(`操作过于频繁，请${rateCheck.waitSeconds}秒后重试`, 429);
+  }
+
   const user = await userDAO.findOne({ username });
 
   if (!user) {
@@ -43,12 +50,13 @@ const login = async (username, password, rememberMe = false) => {
     throw new BusinessError(`账号或密码错误，剩余${MAX_LOGIN_ATTEMPTS - attempts}次机会`, 401);
   }
 
-  // 登录成功，重置计数
+  // 登录成功，重置计数和限流
   await user.update({
     login_attempts: 0,
     status: 'active',
     lock_until: null
   });
+  await cacheService.resetLoginRateLimit(username);
 
   // 生成Token
   const token = generateToken({
@@ -56,6 +64,14 @@ const login = async (username, password, rememberMe = false) => {
     username: user.username,
     role: user.role
   }, rememberMe);
+
+  // 记录活跃会话到 Redis
+  await cacheService.setActiveSession(user.user_id, {
+    username: user.username,
+    role: user.role,
+    loginTime: new Date().toISOString(),
+    ip: null
+  });
 
   return {
     token,
@@ -67,6 +83,13 @@ const login = async (username, password, rememberMe = false) => {
       department: user.department
     }
   };
+};
+
+// 登出（将 token 加入 Redis 黑名单）
+const logout = async (token, userId) => {
+  await cacheService.blacklistToken(token, userId);
+  await cacheService.removeActiveSession(userId);
+  return { message: '登出成功' };
 };
 
 // 找回密码
@@ -158,6 +181,7 @@ const changePassword = async (userId, oldPassword, newPassword, confirmPassword)
 
 module.exports = {
   login,
+  logout,
   forgotPassword,
   getCurrentUser,
   changePassword

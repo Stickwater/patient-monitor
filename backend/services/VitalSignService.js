@@ -3,6 +3,7 @@ const { vitalSignDAO, patientDAO, thresholdDAO, compareResultDAO, patientLogDAO,
 const { BusinessError } = require('../middleware/errorHandler');
 const { v4: uuidv4 } = require('uuid');
 const alertService = require('./AlertService');
+const cacheService = require('./CacheService');
 const { Op } = require('sequelize');
 
 // 上传生理信号
@@ -55,6 +56,10 @@ const uploadVitalSign = async (data) => {
     content: JSON.stringify(vitalSign),
     log_time: new Date()
   });
+
+  // 更新 Redis 缓存
+  await cacheService.cacheLatestVital(data.patientId, vitalSign);
+  await cacheService.invalidateDashboardCache();
 
   return {
     signalId,
@@ -278,25 +283,29 @@ const saveCompareResult = async (patientId, signalId, item, timestamp) => {
 
 // 获取实时数据
 const getRealtimeData = async (patientId) => {
-  const patient = await patientDAO.findByPk(patientId);
-  
-  if (!patient) {
-    throw new BusinessError('患者不存在', 404);
-  }
+  // 先从 Redis 读取缓存
+  const cacheKey = `vital:realtime:${patientId}`;
+  return await cacheService.cacheOrFetch(cacheKey, async () => {
+    const patient = await patientDAO.findByPk(patientId);
+    
+    if (!patient) {
+      throw new BusinessError('患者不存在', 404);
+    }
 
-  const latestVital = await vitalSignDAO.findOne({
-    patient_id: patientId
-  }, {
-    order: [['collect_time', 'DESC']]
-  });
+    const latestVital = await vitalSignDAO.findOne({
+      patient_id: patientId
+    }, {
+      order: [['collect_time', 'DESC']]
+    });
 
-  return {
-    patientId: patient.patient_id,
-    patientName: patient.name,
-    bedNumber: patient.bed_number,
-    latestVital,
-    status: latestVital ? '正常' : '无数据'
-  };
+    return {
+      patientId: patient.patient_id,
+      patientName: patient.name,
+      bedNumber: patient.bed_number,
+      latestVital,
+      status: latestVital ? '正常' : '无数据'
+    };
+  }, 10); // TTL 10 秒
 };
 
 // 获取历史数据
@@ -333,41 +342,44 @@ const getHistoryData = async (patientId, startTime, endTime, page = 1, size = 10
 
 // 获取趋势数据
 const getTrendData = async (patientId, hours = 24) => {
-  const patient = await patientDAO.findByPk(patientId);
-  
-  if (!patient) {
-    throw new BusinessError('患者不存在', 404);
-  }
+  const cacheKey = `vital:trend:${patientId}:${hours}`;
+  return await cacheService.cacheOrFetch(cacheKey, async () => {
+    const patient = await patientDAO.findByPk(patientId);
+    
+    if (!patient) {
+      throw new BusinessError('患者不存在', 404);
+    }
 
-  const startTime = new Date(Date.now() - hours * 60 * 60 * 1000);
+    const startTime = new Date(Date.now() - hours * 60 * 60 * 1000);
 
-  const vitals = await vitalSignDAO.findAll({
-    patient_id: patientId,
-    collect_time: { [Op.gte]: startTime }
-  }, {
-    order: [['collect_time', 'ASC']]
-  });
+    const vitals = await vitalSignDAO.findAll({
+      patient_id: patientId,
+      collect_time: { [Op.gte]: startTime }
+    }, {
+      order: [['collect_time', 'ASC']]
+    });
 
-  // 整理趋势数据
-  const trendData = {
-    pulse: [],
-    temperature: [],
-    bloodPressure: [],
-    timestamps: []
-  };
+    // 整理趋势数据
+    const trendData = {
+      pulse: [],
+      temperature: [],
+      bloodPressure: [],
+      timestamps: []
+    };
 
-  vitals.forEach(v => {
-    trendData.pulse.push(v.pulse);
-    trendData.temperature.push(parseFloat(v.temperature) || null);
-    trendData.bloodPressure.push(v.blood_pressure);
-    trendData.timestamps.push(v.collect_time);
-  });
+    vitals.forEach(v => {
+      trendData.pulse.push(v.pulse);
+      trendData.temperature.push(parseFloat(v.temperature) || null);
+      trendData.bloodPressure.push(v.blood_pressure);
+      trendData.timestamps.push(v.collect_time);
+    });
 
-  return {
-    patientId,
-    patientName: patient.name,
-    trendData
-  };
+    return {
+      patientId,
+      patientName: patient.name,
+      trendData
+    };
+  }, 60); // TTL 60 秒
 };
 
 module.exports = {

@@ -2,6 +2,7 @@
 const { authService } = require('../services');
 const { validationResult } = require('express-validator');
 const { BusinessError } = require('../middleware/errorHandler');
+const { getTokenFromHeader } = require('../config/jwt');
 
 // 登录
 const login = async (req, res, next) => {
@@ -17,6 +18,22 @@ const login = async (req, res, next) => {
     res.json({
       code: 200,
       message: '登录成功',
+      data: result
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 登出
+const logout = async (req, res, next) => {
+  try {
+    const token = getTokenFromHeader(req);
+    const result = await authService.logout(token, req.userId);
+
+    res.json({
+      code: 200,
+      message: '登出成功',
       data: result
     });
   } catch (error) {
@@ -73,6 +90,7 @@ const changePassword = async (req, res, next) => {
 
 module.exports = {
   login,
+  logout,
   forgotPassword,
   getCurrentUser,
   changePassword

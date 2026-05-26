@@ -2,23 +2,27 @@
 const { thresholdDAO, patientDAO, userDAO } = require('../dao');
 const { BusinessError } = require('../middleware/errorHandler');
 const { Op } = require('sequelize');
+const cacheService = require('./CacheService');
 
 // 获取患者阈值
 const getThresholdByPatientId = async (patientId) => {
-  const patient = await patientDAO.findByPk(patientId);
-  
-  if (!patient) {
-    throw new BusinessError('患者不存在', 404);
-  }
+  const cacheKey = `threshold:${patientId}`;
+  return await cacheService.cacheOrFetch(cacheKey, async () => {
+    const patient = await patientDAO.findByPk(patientId);
+    
+    if (!patient) {
+      throw new BusinessError('患者不存在', 404);
+    }
 
-  const threshold = await thresholdDAO.findOne({ patient_id: patientId }, {
-    order: [['effective_time', 'DESC']],
-    include: [
-      { model: userDAO.Model, as: 'creator', attributes: ['user_id', 'real_name'] }
-    ]
-  });
+    const threshold = await thresholdDAO.findOne({ patient_id: patientId }, {
+      order: [['effective_time', 'DESC']],
+      include: [
+        { model: userDAO.Model, as: 'creator', attributes: ['user_id', 'real_name'] }
+      ]
+    });
 
-  return threshold;
+    return threshold;
+  }, 600); // TTL 10 分钟
 };
 
 // 获取我的阈值（患者端）
@@ -78,6 +82,9 @@ const setThreshold = async (patientId, data, doctorId) => {
     effective_time: data.effectiveTime || new Date(),
     created_by: doctorId
   });
+
+  // 清除阈值缓存
+  await cacheService.invalidateThresholdCache(patientId);
 
   return {
     thresholdId: threshold.threshold_id,

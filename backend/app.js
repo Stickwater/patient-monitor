@@ -9,6 +9,7 @@ const { sequelize, testConnection, setupAssociations } = require('./models');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const { initWebSocket, getConnectionStats } = require('./websocket/server');
 const { setupAllTasks } = require('./task/scheduledTasks');
+const { connectRedis, getRedis } = require('./config/redis');
 
 // 导入路由
 const setupRoutes = require('./routes');
@@ -66,6 +67,9 @@ const startServer = async () => {
     // 测试数据库连接
     await testConnection();
     
+    // 初始化Redis
+    await connectRedis();
+
     // 初始化模型关联
     setupAssociations();
     
@@ -90,6 +94,7 @@ const startServer = async () => {
 ║  HTTP Server: http://localhost:${PORT}                       ║
 ║  WebSocket:   ws://localhost:${PORT}/ws/vitals               ║
 ║  环境:        ${process.env.NODE_ENV || 'development'}                              ║
+║  Redis:       ${getRedis() ? '已连接' : '未连接（无缓存模式）'}                      ║
 ╚═══════════════════════════════════════════════════════════╝
       `);
     });
@@ -111,7 +116,9 @@ process.on('unhandledRejection', (reason, promise) => {
 // 优雅关闭
 process.on('SIGTERM', async () => {
   console.log('收到SIGTERM信号，正在关闭服务器...');
-  server.close(() => {
+  const redis = getRedis();
+  server.close(async () => {
+    if (redis) await redis.quit();
     sequelize.close();
     console.log('服务器已关闭');
     process.exit(0);

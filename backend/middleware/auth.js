@@ -1,7 +1,8 @@
 // 认证中间件
 const { verifyToken, getTokenFromHeader } = require('../config/jwt');
-const { User } = require('../models');
+const { userDAO } = require('../dao');
 const { Op } = require('sequelize');
+const cacheService = require('../services/CacheService');
 
 // JWT认证中间件
 const authenticate = async (req, res, next) => {
@@ -15,6 +16,15 @@ const authenticate = async (req, res, next) => {
       });
     }
 
+    // 检查 token 是否在黑名单（登出后不可再用）
+    const isBlacklisted = await cacheService.isTokenBlacklisted(token);
+    if (isBlacklisted) {
+      return res.status(401).json({
+        code: 401,
+        message: 'Token已失效，请重新登录'
+      });
+    }
+
     const decoded = verifyToken(token);
     if (!decoded) {
       return res.status(401).json({
@@ -24,7 +34,7 @@ const authenticate = async (req, res, next) => {
     }
 
     // 验证用户是否存在
-    const user = await User.findByPk(decoded.userId);
+    const user = await userDAO.findByPk(decoded.userId);
     if (!user) {
       return res.status(401).json({
         code: 401,

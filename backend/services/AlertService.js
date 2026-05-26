@@ -4,6 +4,7 @@ const { BusinessError } = require('../middleware/errorHandler');
 const { Op } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
 const { emitAlert } = require('../websocket/server');
+const cacheService = require('./CacheService');
 
 // 获取报警列表
 const getAlerts = async (query = {}) => {
@@ -185,6 +186,9 @@ const createAlertFromCompare = async (patientId, compareResult, patient) => {
     });
   }
 
+  // 清除报警相关缓存
+  await cacheService.invalidateAlertCache();
+
   return alerts;
 };
 
@@ -224,6 +228,8 @@ const confirmAlert = async (alertId, nurseId, action) => {
     handled_time: new Date()
   });
 
+  await cacheService.invalidateAlertCache();
+
   return {
     alertId: alert.alert_id,
     status: '已确认',
@@ -250,6 +256,8 @@ const resolveAlert = async (alertId, nurseId, resolution, vitalRestored) => {
     handled_time: new Date(),
     alert_content: alert.alert_content + ` | 处理结果：${resolution}`
   });
+
+  await cacheService.invalidateAlertCache();
 
   return {
     alertId: alert.alert_id,
@@ -297,6 +305,8 @@ const escalateAlert = async (alertId) => {
     }
   });
 
+  await cacheService.invalidateAlertCache();
+
   return {
     alertId: alert.alert_id,
     status: '已升级',
@@ -306,25 +316,27 @@ const escalateAlert = async (alertId) => {
 
 // 获取待处理报警统计
 const getAlertStats = async () => {
-  const stats = await alertDAO.Model.findAll({
-    attributes: [
-      'status',
-      [alertDAO.Model.sequelize.fn('COUNT', alertDAO.Model.sequelize.col('alert_id')), 'count']
-    ],
-    group: ['status']
-  });
+  return await cacheService.cacheOrFetch('alert:stats:summary', async () => {
+    const stats = await alertDAO.Model.findAll({
+      attributes: [
+        'status',
+        [alertDAO.Model.sequelize.fn('COUNT', alertDAO.Model.sequelize.col('alert_id')), 'count']
+      ],
+      group: ['status']
+    });
 
-  const total = stats.reduce((sum, s) => sum + parseInt(s.get('count')), 0);
-  const pendingCount = stats.find(s => s.status === '待处理')?.get('count') || 0;
+    const total = stats.reduce((sum, s) => sum + parseInt(s.get('count')), 0);
+    const pendingCount = stats.find(s => s.status === '待处理')?.get('count') || 0;
 
-  return {
-    total,
-    pendingCount: parseInt(pendingCount),
-    byStatus: stats.map(s => ({
-      status: s.status,
-      count: parseInt(s.get('count'))
-    }))
-  };
+    return {
+      total,
+      pendingCount: parseInt(pendingCount),
+      byStatus: stats.map(s => ({
+        status: s.status,
+        count: parseInt(s.get('count'))
+      }))
+    };
+  }, 30); // TTL 30 秒
 };
 
 // 检查超时报警（定时任务）
