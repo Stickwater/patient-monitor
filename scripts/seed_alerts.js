@@ -108,13 +108,13 @@ async function seed() {
           const h = status !== '待处理' && handlers.length ? handlers[Math.floor(Math.random() * handlers.length)] : null;
           await conn.query(
             `INSERT INTO alerts (alert_id,patient_id,alert_level,alert_content,indicator,actual_value,threshold_value,status,handled_by,handled_time,timestamp)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+             VALUES (?,?,?,?,?,?,?,?,?,?,NOW())`,
             [alertId, p.patient_id, level,
              v.pulse < threshold.pulse_min
                ? `脉搏偏低：${v.pulse}次/分钟（阈值${threshold.pulse_min}-${threshold.pulse_max}次/分钟）`
                : `脉搏偏高：${v.pulse}次/分钟（阈值${threshold.pulse_min}-${threshold.pulse_max}次/分钟）`,
              'pulse', String(v.pulse), `${threshold.pulse_min}-${threshold.pulse_max}`, status,
-             h?.user_id || null, h ? v.collect_time : null, v.collect_time]
+             h?.user_id || null, h ? v.collect_time : null]
           );
           alertCount++; patientAlertCount++;
         }
@@ -133,13 +133,13 @@ async function seed() {
           const h = status !== '待处理' && handlers.length ? handlers[Math.floor(Math.random() * handlers.length)] : null;
           await conn.query(
             `INSERT INTO alerts (alert_id,patient_id,alert_level,alert_content,indicator,actual_value,threshold_value,status,handled_by,handled_time,timestamp)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+             VALUES (?,?,?,?,?,?,?,?,?,?,NOW())`,
             [alertId, p.patient_id, level,
              temp < parseFloat(threshold.temperature_min)
                ? `体温偏低：${v.temperature}°C（阈值${threshold.temperature_min}-${threshold.temperature_max}°C）`
                : `体温偏高：${v.temperature}°C（阈值${threshold.temperature_min}-${threshold.temperature_max}°C）`,
              'temperature', String(v.temperature), `${threshold.temperature_min}-${threshold.temperature_max}`, status,
-             h?.user_id || null, h ? v.collect_time : null, v.collect_time]
+             h?.user_id || null, h ? v.collect_time : null]
           );
           alertCount++; patientAlertCount++;
         }
@@ -166,10 +166,10 @@ async function seed() {
             const h = status !== '待处理' && handlers.length ? handlers[Math.floor(Math.random() * handlers.length)] : null;
             await conn.query(
               `INSERT INTO alerts (alert_id,patient_id,alert_level,alert_content,indicator,actual_value,threshold_value,status,handled_by,handled_time,timestamp)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+               VALUES (?,?,?,?,?,?,?,?,?,?,NOW())`,
               [alertId, p.patient_id, level, content, 'bloodPressure', v.blood_pressure,
                `${threshold.bp_systolic_min}/${threshold.bp_diastolic_min}-${threshold.bp_systolic_max}/${threshold.bp_diastolic_max}`,
-               status, h?.user_id || null, h ? v.collect_time : null, v.collect_time]
+               status, h?.user_id || null, h ? v.collect_time : null]
             );
             alertCount++; patientAlertCount++;
           }

@@ -111,12 +111,13 @@ async function seed() {
   const [patients] = await conn.query('SELECT patient_id, name FROM patients WHERE status="admitted"');
   console.log(`共 ${patients.length} 名在院患者，准备生成72小时体征数据...`);
 
-  // 清除旧模拟数据
-  await conn.query(`DELETE FROM vital_signs WHERE signal_id LIKE 'SV%'`);
+  // 清除旧模拟数据（先删子表再删主表，避免外键约束）
+  await conn.query(`DELETE FROM alerts`);
   await conn.query(`DELETE FROM compare_results`);
-  await conn.query(`DELETE FROM patient_logs WHERE log_id LIKE 'LG%'`);
   await conn.query(`DELETE FROM medical_reports WHERE report_id LIKE 'MR%'`);
+  await conn.query(`DELETE FROM patient_logs WHERE log_id LIKE 'LG%'`);
   await conn.query(`DELETE FROM treatment_advice WHERE advice_id LIKE 'TA%'`);
+  await conn.query(`DELETE FROM vital_signs WHERE signal_id LIKE 'SV%'`);
 
   const now = new Date();
   const HOURS = 72; // 72小时数据
