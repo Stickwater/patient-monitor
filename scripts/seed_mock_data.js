@@ -7,6 +7,12 @@ require('dotenv').config({ path: path.join(__dirname, '..', 'backend', '.env') }
 
 function randomInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 
+// 每6小时产生一个异常窗口(窗口内2小时)，确保每人每天有4个异常时段 → 72h有12个窗口
+function isAbnormal(hour) {
+  const h6 = hour % 6;
+  return h6 >= 1 && h6 <= 2; // 每6小时的第1-2小时为异常
+}
+
 // 每个患者的基础体征和病情特征（体现不同疾病的差异）
 const PATIENT_PROFILES = {
   // 心内科
@@ -30,10 +36,15 @@ const PATIENT_PROFILES = {
 };
 
 function generatePulse(base, hour, condition) {
+  // 异常时段产生超阈值数据
+  if (isAbnormal(hour)) {
+    // 随机偏高或偏低
+    if (Math.random() < 0.5) return Math.max(30, base - randomInt(15, 30));
+    return Math.min(160, base + randomInt(15, 35));
+  }
   const diurnal = Math.sin((hour - 6) * Math.PI / 12) * 4;
   const noise = (Math.random() - 0.5) * 8;
   let val = Math.round(base + diurnal + noise);
-  // 不同病情倾向不同方向
   if (condition === 'heart_failure' || condition === 'cardiomyopathy') val -= randomInt(3, 8);
   if (condition === 'arrhythmia') val += randomInt(-10, 15);
   if (condition === 'copd' || condition === 'pneumonia') val += randomInt(2, 10);
@@ -44,6 +55,10 @@ function generatePulse(base, hour, condition) {
 }
 
 function generateTemp(base, hour, condition) {
+  if (isAbnormal(hour)) {
+    if (Math.random() < 0.5) return parseFloat(Math.max(34.5, base - randomInt(10, 20) / 10).toFixed(1));
+    return parseFloat(Math.min(40.0, base + randomInt(8, 18) / 10).toFixed(1));
+  }
   const diurnal = Math.sin((hour - 4) * Math.PI / 12) * 0.2;
   const noise = (Math.random() - 0.5) * 0.3;
   let val = base + diurnal + noise;
@@ -53,6 +68,11 @@ function generateTemp(base, hour, condition) {
 }
 
 function generateBP(baseSys, baseDia, hour, condition) {
+  if (isAbnormal(hour)) {
+    const sysOff = randomInt(15, 30) * (Math.random() < 0.5 ? -1 : 1);
+    const diaOff = Math.round(sysOff * 0.6);
+    return { systolic: Math.max(60, Math.min(210, baseSys + sysOff)), diastolic: Math.max(35, Math.min(130, baseDia + diaOff)) };
+  }
   const sysChange = Math.round(Math.sin((hour - 8) * Math.PI / 12) * 5 + (Math.random() - 0.5) * 10);
   const diaChange = Math.round(sysChange * 0.6 + (Math.random() - 0.5) * 5);
   let systolic = baseSys + sysChange;
