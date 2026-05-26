@@ -1,19 +1,19 @@
 // 病情报告服务
-const { MedicalReport, Patient, VitalSign, Alert, PatientLog, User } = require('../models');
+const { medicalReportDAO, patientDAO, vitalSignDAO, alertDAO, patientLogDAO, userDAO } = require('../dao');
 const { BusinessError } = require('../middleware/errorHandler');
 const { Op } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
 
 // 生成病情报告
 const generateReport = async (patientId, startTime, endTime, title) => {
-  const patient = await Patient.findByPk(patientId);
+  const patient = await patientDAO.findByPk(patientId);
   
   if (!patient) {
     throw new BusinessError('患者不存在', 404);
   }
 
   // 获取体征趋势图数据
-  const vitals = await VitalSign.findAll({
+  const vitals = await vitalSignDAO.findAll({
     where: {
       patient_id: patientId,
       collect_time: {
@@ -39,7 +39,7 @@ const generateReport = async (patientId, startTime, endTime, title) => {
   });
 
   // 获取异常事件
-  const abnormalAlerts = await Alert.findAll({
+  const abnormalAlerts = await alertDAO.findAll({
     where: {
       patient_id: patientId,
       timestamp: {
@@ -64,7 +64,7 @@ const generateReport = async (patientId, startTime, endTime, title) => {
   // 生成报告
   const reportId = 'R' + Date.now();
   
-  const report = await MedicalReport.create({
+  const report = await medicalReportDAO.create({
     report_id: reportId,
     patient_id: patientId,
     title: title || `患者${patient.name}病情监测报告`,
@@ -78,7 +78,7 @@ const generateReport = async (patientId, startTime, endTime, title) => {
   });
 
   // 记录病人日志
-  await PatientLog.create({
+  await patientLogDAO.create({
     log_id: 'L' + Date.now(),
     patient_id: patientId,
     title: `生成病情报告：${report.title}`,
@@ -175,11 +175,12 @@ const getReports = async (query = {}) => {
     };
   }
 
-  const result = await MedicalReport.findAndCountAll({
+  const result = await medicalReportDAO.findAndCountAll(
     where,
+    {
     include: [
       { 
-        model: Patient, 
+        model: patientDAO.Model, 
         as: 'patient',
         attributes: ['patient_id', 'name', 'bed_number']
       }
@@ -203,7 +204,7 @@ const getMyReports = async (userId, query = {}) => {
   const { page = 1, size = 20 } = query;
   
   // 通过用户ID找到对应的患者
-  const user = await User.findByPk(userId);
+  const user = await userDAO.findByPk(userId);
   
   if (!user) {
     throw new BusinessError('用户不存在', 404);
@@ -221,15 +222,15 @@ const getMyReports = async (userId, query = {}) => {
   // 查找该用户关联的患者
   let patient = null;
   if (patientId) {
-    patient = await Patient.findOne({
-      where: { patient_id: patientId }
+    patient = await patientDAO.findOne({
+      patient_id: patientId
     });
   }
 
   // 如果没找到，尝试通过真实姓名匹配
   if (!patient && user.real_name) {
-    patient = await Patient.findOne({
-      where: { name: user.real_name }
+    patient = await patientDAO.findOne({
+      name: user.real_name
     });
   }
 
@@ -237,8 +238,9 @@ const getMyReports = async (userId, query = {}) => {
     return { total: 0, list: [], page: 1, size: 20 };
   }
 
-  const result = await MedicalReport.findAndCountAll({
-    where: { patient_id: patient.patient_id },
+  const result = await medicalReportDAO.findAndCountAll(
+    { patient_id: patient.patient_id },
+    {
     order: [['create_time', 'DESC']],
     limit: parseInt(size),
     offset: (parseInt(page) - 1) * parseInt(size)
@@ -255,10 +257,10 @@ const getMyReports = async (userId, query = {}) => {
 
 // 查看报告详情
 const getReportById = async (reportId) => {
-  const report = await MedicalReport.findByPk(reportId, {
+  const report = await medicalReportDAO.findByPk(reportId, {
     include: [
       { 
-        model: Patient, 
+        model: patientDAO.Model, 
         as: 'patient',
         attributes: ['patient_id', 'name', 'bed_number', 'age', 'gender', 'admission_date']
       }
@@ -290,7 +292,7 @@ const getReportById = async (reportId) => {
 
 // 获取我的报告详情（患者端 - 脱敏）
 const getMyReportDetail = async (userId, reportId) => {
-  const user = await User.findByPk(userId);
+  const user = await userDAO.findByPk(userId);
   
   if (!user) {
     throw new BusinessError('用户不存在', 404);
@@ -308,15 +310,15 @@ const getMyReportDetail = async (userId, reportId) => {
   // 查找该用户关联的患者
   let patient = null;
   if (patientId) {
-    patient = await Patient.findOne({
-      where: { patient_id: patientId }
+    patient = await patientDAO.findOne({
+      patient_id: patientId
     });
   }
 
   // 如果没找到，尝试通过真实姓名匹配
   if (!patient && user.real_name) {
-    patient = await Patient.findOne({
-      where: { name: user.real_name }
+    patient = await patientDAO.findOne({
+      name: user.real_name
     });
   }
 
@@ -324,7 +326,7 @@ const getMyReportDetail = async (userId, reportId) => {
     throw new BusinessError('患者不存在', 404);
   }
 
-  const report = await MedicalReport.findByPk(reportId);
+  const report = await medicalReportDAO.findByPk(reportId);
 
   if (!report) {
     throw new BusinessError('报告不存在', 404);
@@ -336,7 +338,7 @@ const getMyReportDetail = async (userId, reportId) => {
   }
 
   // 获取原始数据用于生成脱敏内容
-  const vitals = await VitalSign.findAll({
+  const vitals = await vitalSignDAO.findAll({
     where: {
       patient_id: patient.patient_id,
       collect_time: {
@@ -346,7 +348,7 @@ const getMyReportDetail = async (userId, reportId) => {
     order: [['collect_time', 'ASC']]
   });
 
-  const alerts = await Alert.findAll({
+  const alerts = await alertDAO.findAll({
     where: {
       patient_id: patient.patient_id,
       timestamp: {
@@ -380,7 +382,7 @@ const getMyReportDetail = async (userId, reportId) => {
 
 // 更新病情报告（生成新版本）
 const updateReport = async (reportId, patientId, startTime, endTime) => {
-  const oldReport = await MedicalReport.findByPk(reportId);
+  const oldReport = await medicalReportDAO.findByPk(reportId);
   
   if (!oldReport) {
     throw new BusinessError('报告不存在', 404);
@@ -421,8 +423,8 @@ const autoGenerateDailyReports = async () => {
   const endTime = new Date(yesterday.setHours(23, 59, 59, 999));
 
   // 获取所有在院患者
-  const patients = await Patient.findAll({
-    where: { status: 'admitted' }
+  const patients = await patientDAO.findAll({
+    status: 'admitted'
   });
 
   const reports = [];

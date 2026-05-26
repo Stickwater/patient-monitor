@@ -1,5 +1,5 @@
 // 认证服务
-const { User } = require('../models');
+const { userDAO } = require('../dao');
 const { generateToken } = require('../config/jwt');
 const { BusinessError } = require('../middleware/errorHandler');
 const { v4: uuidv4 } = require('uuid');
@@ -10,7 +10,7 @@ const LOCK_DURATION_MINUTES = parseInt(process.env.LOCK_DURATION_MINUTES) || 30;
 
 // 登录
 const login = async (username, password, rememberMe = false) => {
-  const user = await User.findOne({ where: { username } });
+  const user = await userDAO.findOne({ username });
 
   if (!user) {
     throw new BusinessError('账号或密码错误', 401);
@@ -89,7 +89,7 @@ const forgotPassword = async (phone, verifyCode, newPassword, confirmPassword) =
   }
 
   // 查找用户
-  const user = await User.findOne({ where: { phone } });
+  const user = await userDAO.findOne({ phone });
   if (!user) {
     throw new BusinessError('该手机号未注册', 404);
   }
@@ -108,7 +108,7 @@ const forgotPassword = async (phone, verifyCode, newPassword, confirmPassword) =
 
 // 获取当前用户信息
 const getCurrentUser = async (userId) => {
-  const user = await User.findByPk(userId, {
+  const user = await userDAO.findByPk(userId, {
     attributes: ['user_id', 'username', 'role', 'real_name', 'phone', 'email', 'department', 'status']
   });
 
@@ -121,7 +121,7 @@ const getCurrentUser = async (userId) => {
 
 // 修改密码（已登录用户）
 const changePassword = async (userId, oldPassword, newPassword, confirmPassword) => {
-  const user = await User.findByPk(userId);
+  const user = await userDAO.findByPk(userId);
 
   if (!user) {
     throw new BusinessError('用户不存在', 404);

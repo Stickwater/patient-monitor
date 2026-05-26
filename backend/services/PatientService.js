@@ -1,5 +1,5 @@
 // 患者服务
-const { Patient, User, VitalSign, Threshold, Alert } = require('../models');
+const { patientDAO, userDAO, vitalSignDAO, thresholdDAO, alertDAO } = require('../dao');
 const { Op } = require('sequelize');
 const { BusinessError } = require('../middleware/errorHandler');
 const { v4: uuidv4 } = require('uuid');
@@ -36,10 +36,9 @@ const getPatients = async (query = {}) => {
     ];
   }
 
-  const result = await Patient.findAndCountAll({
-    where,
+  const result = await patientDAO.findAndCountAll(where, {
     include: [
-      { model: User, as: 'attendingDoctor', attributes: ['user_id', 'real_name', 'department'] }
+      { model: userDAO.Model, as: 'attendingDoctor', attributes: ['user_id', 'real_name', 'department'] }
     ],
     order: [['bed_number', 'ASC']],
     limit: parseInt(size),
@@ -57,10 +56,10 @@ const getPatients = async (query = {}) => {
 
 // 获取患者详情
 const getPatientById = async (patientId) => {
-  const patient = await Patient.findByPk(patientId, {
+  const patient = await patientDAO.findByPk(patientId, {
     include: [
-      { model: User, as: 'attendingDoctor', attributes: ['user_id', 'real_name', 'department', 'phone'] },
-      { model: Threshold, as: 'Thresholds', limit: 1, order: [['effective_time', 'DESC']] }
+      { model: userDAO.Model, as: 'attendingDoctor', attributes: ['user_id', 'real_name', 'department', 'phone'] },
+      { model: thresholdDAO.Model, as: 'Thresholds', limit: 1, order: [['effective_time', 'DESC']] }
     ]
   });
 
@@ -73,14 +72,15 @@ const getPatientById = async (patientId) => {
 
 // 根据用户ID获取患者信息（患者端使用）
 const getPatientByUserId = async (userId) => {
-  const user = await User.findByPk(userId);
+  const user = await userDAO.findByPk(userId);
   if (!user) throw new BusinessError('用户不存在', 404);
 
   // 先尝试通过 user_id 关联
-  let patient = await Patient.findOne({
-    where: { user_id: userId },
+  let patient = await patientDAO.findOne({
+    user_id: userId
+  }, {
     include: [
-      { model: User, as: 'attendingDoctor', attributes: ['user_id', 'real_name', 'department', 'phone'] }
+      { model: userDAO.Model, as: 'attendingDoctor', attributes: ['user_id', 'real_name', 'department', 'phone'] }
     ]
   });
 
@@ -88,20 +88,22 @@ const getPatientByUserId = async (userId) => {
   if (!patient && user.username && user.username.startsWith('patient')) {
     const numPart = user.username.replace('patient', '');
     const patientId = 'P' + numPart.padStart(3, '0');
-    patient = await Patient.findOne({
-      where: { patient_id: patientId },
+    patient = await patientDAO.findOne({
+      patient_id: patientId
+    }, {
       include: [
-        { model: User, as: 'attendingDoctor', attributes: ['user_id', 'real_name', 'department', 'phone'] }
+        { model: userDAO.Model, as: 'attendingDoctor', attributes: ['user_id', 'real_name', 'department', 'phone'] }
       ]
     });
   }
 
   // 如果还没找到，通过真实姓名匹配
   if (!patient && user.real_name) {
-    patient = await Patient.findOne({
-      where: { name: user.real_name },
+    patient = await patientDAO.findOne({
+      name: user.real_name
+    }, {
       include: [
-        { model: User, as: 'attendingDoctor', attributes: ['user_id', 'real_name', 'department', 'phone'] }
+        { model: userDAO.Model, as: 'attendingDoctor', attributes: ['user_id', 'real_name', 'department', 'phone'] }
       ]
     });
   }
@@ -117,7 +119,7 @@ const getPatientByUserId = async (userId) => {
 const createPatient = async (data) => {
   const patientId = 'P' + Date.now();
   
-  const patient = await Patient.create({
+  const patient = await patientDAO.create({
     patient_id: patientId,
     name: data.name,
     gender: data.gender,
@@ -133,7 +135,7 @@ const createPatient = async (data) => {
 
 // 更新患者信息
 const updatePatient = async (patientId, data) => {
-  const patient = await Patient.findByPk(patientId);
+  const patient = await patientDAO.findByPk(patientId);
   
   if (!patient) {
     throw new BusinessError('患者不存在', 404);
@@ -155,14 +157,15 @@ const updatePatient = async (patientId, data) => {
 
 // 获取患者最新生理信号
 const getLatestVital = async (patientId) => {
-  const patient = await Patient.findByPk(patientId);
+  const patient = await patientDAO.findByPk(patientId);
   
   if (!patient) {
     throw new BusinessError('患者不存在', 404);
   }
 
-  const vital = await VitalSign.findOne({
-    where: { patient_id: patientId },
+  const vital = await vitalSignDAO.findOne({
+    patient_id: patientId
+  }, {
     order: [['collect_time', 'DESC']]
   });
 
@@ -171,8 +174,8 @@ const getLatestVital = async (patientId) => {
   }
 
   // 检查是否有待处理的报警
-  const pendingAlerts = await Alert.count({
-    where: { patient_id: patientId, status: '待处理' }
+  const pendingAlerts = await alertDAO.count({
+    patient_id: patientId, status: '待处理'
   });
 
   return {

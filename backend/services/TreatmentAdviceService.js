@@ -1,14 +1,14 @@
 // 诊疗建议服务
-const { TreatmentAdvice, Patient, User } = require('../models');
+const { treatmentAdviceDAO, patientDAO, userDAO } = require('../dao');
 const { BusinessError } = require('../middleware/errorHandler');
 
 // 创建诊疗建议
 const createAdvice = async (data, doctorId) => {
-  const patient = await Patient.findByPk(data.patientId);
+  const patient = await patientDAO.findByPk(data.patientId);
   if (!patient) throw new BusinessError('患者不存在', 404);
 
   const adviceId = 'TA' + Date.now();
-  const advice = await TreatmentAdvice.create({
+  const advice = await treatmentAdviceDAO.create({
     advice_id: adviceId,
     patient_id: data.patientId,
     doctor_id: doctorId,
@@ -27,10 +27,9 @@ const getAdvicesByPatient = async (patientId, type) => {
   const where = { patient_id: patientId, is_active: true };
   if (type) where.type = type;
 
-  return await TreatmentAdvice.findAll({
-    where,
+  return await treatmentAdviceDAO.findAll(where, {
     include: [
-      { model: User, as: 'doctor', attributes: ['user_id', 'real_name'] }
+      { model: userDAO.Model, as: 'doctor', attributes: ['user_id', 'real_name'] }
     ],
     order: [['create_time', 'DESC']]
   });
@@ -38,12 +37,12 @@ const getAdvicesByPatient = async (patientId, type) => {
 
 // 获取我的诊疗建议（患者端）
 const getMyAdvices = async (userId, type) => {
-  const user = await User.findByPk(userId);
+  const user = await userDAO.findByPk(userId);
   if (!user) throw new BusinessError('用户不存在', 404);
 
   // 通过真实姓名查找患者
-  const patient = await Patient.findOne({
-    where: { name: user.real_name }
+  const patient = await patientDAO.findOne({
+    name: user.real_name
   });
 
   if (!patient) return [];
@@ -51,10 +50,9 @@ const getMyAdvices = async (userId, type) => {
   const where = { patient_id: patient.patient_id, is_active: true };
   if (type) where.type = type;
 
-  return await TreatmentAdvice.findAll({
-    where,
+  return await treatmentAdviceDAO.findAll(where, {
     include: [
-      { model: User, as: 'doctor', attributes: ['user_id', 'real_name'] }
+      { model: userDAO.Model, as: 'doctor', attributes: ['user_id', 'real_name'] }
     ],
     order: [['create_time', 'DESC']]
   });
@@ -62,7 +60,7 @@ const getMyAdvices = async (userId, type) => {
 
 // 删除诊疗建议
 const deleteAdvice = async (adviceId, doctorId) => {
-  const advice = await TreatmentAdvice.findByPk(adviceId);
+  const advice = await treatmentAdviceDAO.findByPk(adviceId);
   if (!advice) throw new BusinessError('建议不存在', 404);
 
   await advice.update({ is_active: false });

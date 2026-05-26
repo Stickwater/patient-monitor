@@ -1,21 +1,20 @@
 // 阈值服务
-const { Threshold, Patient, User } = require('../models');
+const { thresholdDAO, patientDAO, userDAO } = require('../dao');
 const { BusinessError } = require('../middleware/errorHandler');
 const { Op } = require('sequelize');
 
 // 获取患者阈值
 const getThresholdByPatientId = async (patientId) => {
-  const patient = await Patient.findByPk(patientId);
+  const patient = await patientDAO.findByPk(patientId);
   
   if (!patient) {
     throw new BusinessError('患者不存在', 404);
   }
 
-  const threshold = await Threshold.findOne({
-    where: { patient_id: patientId },
+  const threshold = await thresholdDAO.findOne({ patient_id: patientId }, {
     order: [['effective_time', 'DESC']],
     include: [
-      { model: User, as: 'creator', attributes: ['user_id', 'real_name'] }
+      { model: userDAO.Model, as: 'creator', attributes: ['user_id', 'real_name'] }
     ]
   });
 
@@ -24,22 +23,21 @@ const getThresholdByPatientId = async (patientId) => {
 
 // 获取我的阈值（患者端）
 const getMyThreshold = async (userId) => {
-  const user = await User.findByPk(userId);
+  const user = await userDAO.findByPk(userId);
   
   if (!user) {
     throw new BusinessError('用户不存在', 404);
   }
 
-  const patient = await Patient.findOne({
-    where: { user_id: userId }
+  const patient = await patientDAO.findOne({
+    user_id: userId
   });
 
   if (!patient) {
     return null;
   }
 
-  const threshold = await Threshold.findOne({
-    where: { patient_id: patient.patient_id },
+  const threshold = await thresholdDAO.findOne({ patient_id: patient.patient_id }, {
     order: [['effective_time', 'DESC']]
   });
 
@@ -48,7 +46,7 @@ const getMyThreshold = async (userId) => {
 
 // 设置/更新阈值
 const setThreshold = async (patientId, data, doctorId) => {
-  const patient = await Patient.findByPk(patientId);
+  const patient = await patientDAO.findByPk(patientId);
   
   if (!patient) {
     throw new BusinessError('患者不存在', 404);
@@ -65,7 +63,7 @@ const setThreshold = async (patientId, data, doctorId) => {
   const thresholdId = 'T' + Date.now();
 
   // 创建新阈值记录
-  const threshold = await Threshold.create({
+  const threshold = await thresholdDAO.create({
     threshold_id: thresholdId,
     patient_id: patientId,
     pulse_min: data.pulseMin,
@@ -230,16 +228,15 @@ const getMedicalRanges = (age) => {
 
 // 获取阈值历史
 const getThresholdHistory = async (patientId) => {
-  const patient = await Patient.findByPk(patientId);
+  const patient = await patientDAO.findByPk(patientId);
   
   if (!patient) {
     throw new BusinessError('患者不存在', 404);
   }
 
-  const thresholds = await Threshold.findAll({
-    where: { patient_id: patientId },
+  const thresholds = await thresholdDAO.findAll({ patient_id: patientId }, {
     include: [
-      { model: User, as: 'creator', attributes: ['user_id', 'real_name'] }
+      { model: userDAO.Model, as: 'creator', attributes: ['user_id', 'real_name'] }
     ],
     order: [['effective_time', 'DESC']]
   });

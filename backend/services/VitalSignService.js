@@ -1,5 +1,5 @@
 // 生理信号服务（核心监护逻辑）
-const { VitalSign, Patient, Threshold, CompareResult, Alert, PatientLog, User } = require('../models');
+const { vitalSignDAO, patientDAO, thresholdDAO, compareResultDAO, patientLogDAO, userDAO } = require('../dao');
 const { BusinessError } = require('../middleware/errorHandler');
 const { v4: uuidv4 } = require('uuid');
 const alertService = require('./AlertService');
@@ -7,8 +7,7 @@ const { Op } = require('sequelize');
 
 // 上传生理信号
 const uploadVitalSign = async (data) => {
-  // 验证患者存在
-  const patient = await Patient.findByPk(data.patientId);
+  const patient = await patientDAO.findByPk(data.patientId);
   if (!patient) {
     throw new BusinessError('患者不存在', 404);
   }
@@ -17,7 +16,7 @@ const uploadVitalSign = async (data) => {
   const signalId = 'S' + Date.now();
 
   // 保存生理信号
-  const vitalSign = await VitalSign.create({
+  const vitalSign = await vitalSignDAO.create({
     signal_id: signalId,
     patient_id: data.patientId,
     pulse: data.pulse,
@@ -28,8 +27,7 @@ const uploadVitalSign = async (data) => {
   });
 
   // 获取患者阈值
-  const threshold = await Threshold.findOne({
-    where: { patient_id: data.patientId },
+  const threshold = await thresholdDAO.findOne({ patient_id: data.patientId }, {
     order: [['effective_time', 'DESC']]
   });
 
@@ -49,7 +47,7 @@ const uploadVitalSign = async (data) => {
   }
 
   // 生成病人日志
-  await PatientLog.create({
+  await patientLogDAO.create({
     log_id: 'L' + Date.now(),
     patient_id: data.patientId,
     title: '生理信号采集',
@@ -68,7 +66,7 @@ const uploadVitalSign = async (data) => {
 // 获取我的体征数据（患者端）
 const getMyVitals = async (userId, hours = 24) => {
   // 通过用户ID找到对应的患者记录
-  const user = await User.findByPk(userId);
+  const user = await userDAO.findByPk(userId);
   
   if (!user) {
     throw new BusinessError('用户不存在', 404);
@@ -86,15 +84,15 @@ const getMyVitals = async (userId, hours = 24) => {
   // 查找该用户关联的患者
   let patient = null;
   if (patientId) {
-    patient = await Patient.findOne({
-      where: { patient_id: patientId }
+    patient = await patientDAO.findOne({
+      patient_id: patientId
     });
   }
 
   // 如果没找到，尝试通过真实姓名匹配
   if (!patient && user.real_name) {
-    patient = await Patient.findOne({
-      where: { name: user.real_name }
+    patient = await patientDAO.findOne({
+      name: user.real_name
     });
   }
 
@@ -105,11 +103,10 @@ const getMyVitals = async (userId, hours = 24) => {
 
   const startTime = new Date(Date.now() - hours * 60 * 60 * 1000);
 
-  const result = await VitalSign.findAndCountAll({
-    where: {
-      patient_id: patient.patient_id,
-      collect_time: { [Op.gte]: startTime }
-    },
+  const result = await vitalSignDAO.findAndCountAll({
+    patient_id: patient.patient_id,
+    collect_time: { [Op.gte]: startTime }
+  }, {
     order: [['collect_time', 'DESC']]
   });
 
@@ -265,7 +262,7 @@ const checkECG = (ecgData, rules) => {
 
 // 保存比对结果
 const saveCompareResult = async (patientId, signalId, item, timestamp) => {
-  await CompareResult.create({
+  await compareResultDAO.create({
     result_id: 'CR' + Date.now() + Math.random().toString(36).substr(2, 5),
     patient_id: patientId,
     signal_id: signalId,
@@ -281,14 +278,15 @@ const saveCompareResult = async (patientId, signalId, item, timestamp) => {
 
 // 获取实时数据
 const getRealtimeData = async (patientId) => {
-  const patient = await Patient.findByPk(patientId);
+  const patient = await patientDAO.findByPk(patientId);
   
   if (!patient) {
     throw new BusinessError('患者不存在', 404);
   }
 
-  const latestVital = await VitalSign.findOne({
-    where: { patient_id: patientId },
+  const latestVital = await vitalSignDAO.findOne({
+    patient_id: patientId
+  }, {
     order: [['collect_time', 'DESC']]
   });
 
@@ -303,7 +301,7 @@ const getRealtimeData = async (patientId) => {
 
 // 获取历史数据
 const getHistoryData = async (patientId, startTime, endTime, page = 1, size = 100) => {
-  const patient = await Patient.findByPk(patientId);
+  const patient = await patientDAO.findByPk(patientId);
   
   if (!patient) {
     throw new BusinessError('患者不存在', 404);
@@ -317,8 +315,7 @@ const getHistoryData = async (patientId, startTime, endTime, page = 1, size = 10
     };
   }
 
-  const result = await VitalSign.findAndCountAll({
-    where,
+  const result = await vitalSignDAO.findAndCountAll(where, {
     order: [['collect_time', 'DESC']],
     limit: parseInt(size),
     offset: (parseInt(page) - 1) * parseInt(size)
@@ -336,7 +333,7 @@ const getHistoryData = async (patientId, startTime, endTime, page = 1, size = 10
 
 // 获取趋势数据
 const getTrendData = async (patientId, hours = 24) => {
-  const patient = await Patient.findByPk(patientId);
+  const patient = await patientDAO.findByPk(patientId);
   
   if (!patient) {
     throw new BusinessError('患者不存在', 404);
@@ -344,11 +341,10 @@ const getTrendData = async (patientId, hours = 24) => {
 
   const startTime = new Date(Date.now() - hours * 60 * 60 * 1000);
 
-  const vitals = await VitalSign.findAll({
-    where: {
-      patient_id: patientId,
-      collect_time: { [Op.gte]: startTime }
-    },
+  const vitals = await vitalSignDAO.findAll({
+    patient_id: patientId,
+    collect_time: { [Op.gte]: startTime }
+  }, {
     order: [['collect_time', 'ASC']]
   });
 

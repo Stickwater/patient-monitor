@@ -1,5 +1,5 @@
 // 报警服务
-const { Alert, Patient, User, VitalSign } = require('../models');
+const { alertDAO, patientDAO, userDAO, vitalSignDAO } = require('../dao');
 const { BusinessError } = require('../middleware/errorHandler');
 const { Op } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
@@ -37,16 +37,15 @@ const getAlerts = async (query = {}) => {
     };
   }
 
-  const result = await Alert.findAndCountAll({
-    where,
+  const result = await alertDAO.findAndCountAll(where, {
     include: [
       { 
-        model: Patient, 
+        model: patientDAO.Model, 
         as: 'patient',
         attributes: ['patient_id', 'name', 'bed_number']
       },
       { 
-        model: User, 
+        model: userDAO.Model, 
         as: 'handler',
         attributes: ['user_id', 'real_name']
       }
@@ -84,15 +83,15 @@ const getAlerts = async (query = {}) => {
 
 // 获取单个报警详情
 const getAlertById = async (alertId) => {
-  const alert = await Alert.findByPk(alertId, {
+  const alert = await alertDAO.findByPk(alertId, {
     include: [
       { 
-        model: Patient, 
+        model: patientDAO.Model, 
         as: 'patient',
         attributes: ['patient_id', 'name', 'bed_number', 'age', 'gender']
       },
       { 
-        model: User, 
+        model: userDAO.Model, 
         as: 'handler',
         attributes: ['user_id', 'real_name']
       }
@@ -104,8 +103,9 @@ const getAlertById = async (alertId) => {
   }
 
   // 获取最新的生理信号
-  const latestVital = await VitalSign.findOne({
-    where: { patient_id: alert.patient_id },
+  const latestVital = await vitalSignDAO.findOne({
+    patient_id: alert.patient_id
+  }, {
     order: [['collect_time', 'DESC']]
   });
 
@@ -140,7 +140,7 @@ const createAlertFromCompare = async (patientId, compareResult, patient) => {
   for (const item of compareResult.abnormalItems) {
     const alertId = 'A' + Date.now() + Math.random().toString(36).substr(2, 4);
 
-    const alert = await Alert.create({
+    const alert = await alertDAO.create({
       alert_id: alertId,
       patient_id: patientId,
       alert_level: item.abnormalLevel || '一般',
@@ -208,7 +208,7 @@ const formatAlertContent = (item) => {
 
 // 确认报警
 const confirmAlert = async (alertId, nurseId, action) => {
-  const alert = await Alert.findByPk(alertId);
+  const alert = await alertDAO.findByPk(alertId);
 
   if (!alert) {
     throw new BusinessError('报警记录不存在', 404);
@@ -234,7 +234,7 @@ const confirmAlert = async (alertId, nurseId, action) => {
 
 // 解除报警
 const resolveAlert = async (alertId, nurseId, resolution, vitalRestored) => {
-  const alert = await Alert.findByPk(alertId);
+  const alert = await alertDAO.findByPk(alertId);
 
   if (!alert) {
     throw new BusinessError('报警记录不存在', 404);
@@ -261,14 +261,14 @@ const resolveAlert = async (alertId, nurseId, resolution, vitalRestored) => {
 
 // 升级报警（自动或手动）
 const escalateAlert = async (alertId) => {
-  const alert = await Alert.findByPk(alertId);
+  const alert = await alertDAO.findByPk(alertId);
 
   if (!alert) {
     throw new BusinessError('报警记录不存在', 404);
   }
 
   // 获取患者主治医生
-  const patient = await Patient.findByPk(alert.patient_id);
+  const patient = await patientDAO.findByPk(alert.patient_id);
 
   if (!patient || !patient.attending_doctor_id) {
     throw new BusinessError('无法获取主治医生信息', 400);
@@ -306,10 +306,10 @@ const escalateAlert = async (alertId) => {
 
 // 获取待处理报警统计
 const getAlertStats = async () => {
-  const stats = await Alert.findAll({
+  const stats = await alertDAO.Model.findAll({
     attributes: [
       'status',
-      [Alert.sequelize.fn('COUNT', Alert.sequelize.col('alert_id')), 'count']
+      [alertDAO.Model.sequelize.fn('COUNT', alertDAO.Model.sequelize.col('alert_id')), 'count']
     ],
     group: ['status']
   });
@@ -332,11 +332,9 @@ const checkOverdueAlerts = async () => {
   const timeoutMinutes = parseInt(process.env.ALERT_TIMEOUT_MINUTES) || 5;
   const timeoutTime = new Date(Date.now() - timeoutMinutes * 60 * 1000);
 
-  const overdueAlerts = await Alert.findAll({
-    where: {
-      status: '待处理',
-      timestamp: { [Op.lt]: timeoutTime }
-    }
+  const overdueAlerts = await alertDAO.findAll({
+    status: '待处理',
+    timestamp: { [Op.lt]: timeoutTime }
   });
 
   for (const alert of overdueAlerts) {
