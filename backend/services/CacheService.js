@@ -2,13 +2,14 @@
 const { getRedis } = require('../config/redis');
 
 const CACHE_PREFIX = {
-  SESSION: 'session:',     // 用户会话 / token 黑名单
-  RATE_LIMIT: 'rate:',     // 登录频率限制
+  SESSION: 'session:',              // 用户会话
+  TOKEN_BLACKLIST: 'blacklist:token:',  // token 黑名单
+  RATE_LIMIT: 'rate:',              // 登录频率限制
   VITAL_LATEST: 'vital:latest:',    // 患者最新体征
   VITAL_HISTORY: 'vital:history:',  // 患者体征历史
   ALERT_ACTIVE: 'alert:active:',    // 活跃报警列表
-  ALERT_STATS: 'alert:stats:',      // 报警统计
-  PATIENT_LIST: 'patient:list:',    // 患者列表
+  ALERT_STATS: 'alerts:stats:',     // 报警统计
+  PATIENT_LIST: 'patients:list:',   // 患者列表
   PATIENT_DETAIL: 'patient:detail:',// 患者详情
   THRESHOLD: 'threshold:',          // 阈值配置
   REPORT: 'report:',                // 报告缓存
@@ -91,15 +92,14 @@ const cacheOrFetch = async (key, fetchFn, ttl = 60) => {
 
 // 将 token 加入黑名单（登出）
 const blacklistToken = async (token, userId) => {
-  // 使用 token 的 hash 作为 key，存储过期时间
   const tokenHash = require('crypto').createHash('md5').update(token).digest('hex');
-  await set(`${CACHE_PREFIX.SESSION}blacklist:${tokenHash}`, { userId, time: Date.now() }, TTL.SESSION);
+  await set(`${CACHE_PREFIX.TOKEN_BLACKLIST}${tokenHash}`, { userId, time: Date.now() }, TTL.SESSION);
 };
 
 // 检查 token 是否在黑名单
 const isTokenBlacklisted = async (token) => {
   const tokenHash = require('crypto').createHash('md5').update(token).digest('hex');
-  const cached = await get(`${CACHE_PREFIX.SESSION}blacklist:${tokenHash}`);
+  const cached = await get(`${CACHE_PREFIX.TOKEN_BLACKLIST}${tokenHash}`);
   return cached !== null;
 };
 

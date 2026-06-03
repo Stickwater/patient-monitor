@@ -14,12 +14,11 @@ const generateReport = async (patientId, startTime, endTime, title) => {
 
   // 获取体征趋势图数据
   const vitals = await vitalSignDAO.findAll({
-    where: {
-      patient_id: patientId,
-      collect_time: {
-        [Op.between]: [new Date(startTime), new Date(endTime)]
-      }
-    },
+    patient_id: patientId,
+    collect_time: {
+      [Op.between]: [new Date(startTime), new Date(endTime)]
+    }
+  }, {
     order: [['collect_time', 'ASC']]
   });
 
@@ -40,12 +39,11 @@ const generateReport = async (patientId, startTime, endTime, title) => {
 
   // 获取异常事件
   const abnormalAlerts = await alertDAO.findAll({
-    where: {
-      patient_id: patientId,
-      timestamp: {
-        [Op.between]: [new Date(startTime), new Date(endTime)]
-      }
-    },
+    patient_id: patientId,
+    timestamp: {
+      [Op.between]: [new Date(startTime), new Date(endTime)]
+    }
+  }, {
     order: [['timestamp', 'ASC']]
   });
 
@@ -210,28 +208,22 @@ const getMyReports = async (userId, query = {}) => {
     throw new BusinessError('用户不存在', 404);
   }
 
-  // 从用户名提取患者ID，例如 patient01 -> P001, patient1 -> P001
-  let patientId = null;
-  const username = user.username;
-  
-  if (username.startsWith('patient')) {
-    const numPart = username.replace('patient', '');
-    patientId = 'P' + numPart.padStart(3, '0');
-  }
-  
-  // 查找该用户关联的患者
-  let patient = null;
-  if (patientId) {
-    patient = await patientDAO.findOne({
-      patient_id: patientId
-    });
+  // 查找该用户关联的患者：优先用 user_id 关联
+  let patient = await patientDAO.findOne({ user_id: userId });
+
+  // 如果没找到，从用户名提取患者ID，例如 patient01 -> P001
+  if (!patient) {
+    const username = user.username;
+    if (username.startsWith('patient')) {
+      const numPart = username.replace('patient', '');
+      const patientId = 'P' + numPart.padStart(3, '0');
+      patient = await patientDAO.findOne({ patient_id: patientId });
+    }
   }
 
   // 如果没找到，尝试通过真实姓名匹配
   if (!patient && user.real_name) {
-    patient = await patientDAO.findOne({
-      name: user.real_name
-    });
+    patient = await patientDAO.findOne({ name: user.real_name });
   }
 
   if (!patient) {
@@ -298,28 +290,22 @@ const getMyReportDetail = async (userId, reportId) => {
     throw new BusinessError('用户不存在', 404);
   }
 
-  // 从用户名提取患者ID，例如 patient01 -> P001, patient1 -> P001
-  let patientId = null;
-  const username = user.username;
-  
-  if (username.startsWith('patient')) {
-    const numPart = username.replace('patient', '');
-    patientId = 'P' + numPart.padStart(3, '0');
-  }
-  
-  // 查找该用户关联的患者
-  let patient = null;
-  if (patientId) {
-    patient = await patientDAO.findOne({
-      patient_id: patientId
-    });
+  // 查找该用户关联的患者：优先用 user_id 关联
+  let patient = await patientDAO.findOne({ user_id: userId });
+
+  // 如果没找到，从用户名提取患者ID，例如 patient01 -> P001
+  if (!patient) {
+    const username = user.username;
+    if (username.startsWith('patient')) {
+      const numPart = username.replace('patient', '');
+      const patientId = 'P' + numPart.padStart(3, '0');
+      patient = await patientDAO.findOne({ patient_id: patientId });
+    }
   }
 
   // 如果没找到，尝试通过真实姓名匹配
   if (!patient && user.real_name) {
-    patient = await patientDAO.findOne({
-      name: user.real_name
-    });
+    patient = await patientDAO.findOne({ name: user.real_name });
   }
 
   if (!patient) {
@@ -338,40 +324,61 @@ const getMyReportDetail = async (userId, reportId) => {
   }
 
   // 获取原始数据用于生成脱敏内容
-  const vitals = await vitalSignDAO.findAll({
-    where: {
-      patient_id: patient.patient_id,
-      collect_time: {
-        [Op.between]: [report.start_time, report.end_time]
-      }
-    },
-    order: [['collect_time', 'ASC']]
-  });
+  let vitals = [];
+  let alerts = [];
+  let desensitizedContent = report.content || '';
 
-  const alerts = await alertDAO.findAll({
-    where: {
-      patient_id: patient.patient_id,
-      timestamp: {
-        [Op.between]: [report.start_time, report.end_time]
-      }
-    },
-    order: [['timestamp', 'ASC']]
-  });
+  if (report.start_time && report.end_time) {
+    try {
+      vitals = await vitalSignDAO.findAll(
+        {
+          patient_id: patient.patient_id,
+          collect_time: {
+            [Op.between]: [report.start_time, report.end_time]
+          }
+        }, {
+          order: [['collect_time', 'ASC']]
+        }
+      );
+    } catch (e) {
+      console.error('查询体征数据失败:', e.message);
+    }
 
-  // 生成脱敏内容
-  const desensitizedContent = generateDesensitizedContent(
-    patient,
-    vitals,
-    alerts,
-    report.start_time,
-    report.end_time
-  );
+    try {
+      alerts = await alertDAO.findAll(
+        {
+          patient_id: patient.patient_id,
+          timestamp: {
+            [Op.between]: [report.start_time, report.end_time]
+          }
+        }, {
+          order: [['timestamp', 'ASC']]
+        }
+      );
+    } catch (e) {
+      console.error('查询报警数据失败:', e.message);
+    }
+
+    try {
+      desensitizedContent = generateDesensitizedContent(
+        patient,
+        vitals,
+        alerts,
+        report.start_time,
+        report.end_time
+      );
+    } catch (e) {
+      console.error('生成脱敏内容失败:', e.message);
+    }
+  }
 
   return {
     reportId: report.report_id,
     patientId: report.patient_id,
     title: report.title,
     content: desensitizedContent,
+    trendData: report.trend_data,
+    abnormalEvents: report.abnormal_events,
     startTime: report.start_time,
     endTime: report.end_time,
     version: report.version,

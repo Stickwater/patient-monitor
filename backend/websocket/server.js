@@ -49,6 +49,12 @@ const initWebSocket = (server) => {
       timestamp: new Date().toISOString()
     }));
 
+    // 心跳检测机制
+    ws.isAlive = true;
+    ws.on('pong', () => {
+      ws.isAlive = true;
+    });
+
     // 处理消息
     ws.on('message', (message) => {
       try {
@@ -78,6 +84,23 @@ const initWebSocket = (server) => {
   });
 
   console.log('WebSocket服务器已启动');
+
+  // 心跳检测 - 每30秒检测一次，超时断开连接
+  const heartbeatInterval = setInterval(() => {
+    wss.clients.forEach((ws) => {
+      if (!ws.isAlive) {
+        console.log('心跳超时，断开连接');
+        return ws.terminate();
+      }
+      ws.isAlive = false;
+      ws.ping();
+    });
+  }, 30000);
+
+  wss.on('close', () => {
+    clearInterval(heartbeatInterval);
+  });
+
   return wss;
 };
 
@@ -117,6 +140,32 @@ const broadcast = (message) => {
   wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(messageStr);
+    }
+  });
+};
+
+// 按患者ID广播消息给订阅了该患者的连接
+const broadcastByPatientId = (patientId, messageType, data) => {
+  if (!wss) return;
+
+  const message = JSON.stringify({
+    type: messageType,
+    patientId,
+    data,
+    timestamp: new Date().toISOString()
+  });
+
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      // 如果客户端订阅了特定患者，只推送给订阅者
+      if (client.subscribedPatients && client.subscribedPatients.size > 0) {
+        if (client.subscribedPatients.has(patientId)) {
+          client.send(message);
+        }
+      } else {
+        // 未指定订阅则推送给所有人
+        client.send(message);
+      }
     }
   });
 };
@@ -178,6 +227,7 @@ const getConnectionStats = () => {
 module.exports = {
   initWebSocket,
   broadcast,
+  broadcastByPatientId,
   sendToUser,
   emitVitalUpdate,
   emitAlert,
