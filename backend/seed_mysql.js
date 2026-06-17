@@ -11,7 +11,7 @@
  */
 require('dotenv').config();
 const { sequelize } = require('./config/database');
-const { Patient, VitalSign, Threshold, Alert, User } = require('./models');
+const { Patient, VitalSign, Threshold, Alert, User, CompareResult } = require('./models');
 const { Op } = require('sequelize');
 
 const NOW = new Date();
@@ -194,8 +194,15 @@ async function seed() {
 
     // ========== 3. 体征历史（24h 趋势数据） ==========
     console.log('\n--- 创建体征历史 ---');
-    // 先清除这些患者的旧体征数据
-    await VitalSign.destroy({ where: { patient_id: { [Op.in]: PATIENT_DEFS.map(p => p.id) } } });
+    // 先清除旧数据（按外键依赖顺序：compare_results → vital_signs → alerts → thresholds）
+    const patientIds = PATIENT_DEFS.map(p => p.id);
+
+    const oldVitalIds = await VitalSign.findAll({ where: { patient_id: { [Op.in]: patientIds } }, attributes: ['signal_id'], raw: true });
+    if (oldVitalIds.length) {
+      await CompareResult.destroy({ where: { signal_id: { [Op.in]: oldVitalIds.map(v => v.signal_id) } } });
+      console.log(`  清除 ${oldVitalIds.length} 条关联 compare_results`);
+    }
+    await VitalSign.destroy({ where: { patient_id: { [Op.in]: patientIds } } });
 
     const vitalBatch = [];
     let signalCounter = 1000;
