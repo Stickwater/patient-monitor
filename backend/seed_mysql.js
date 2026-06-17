@@ -18,6 +18,14 @@ const NOW = new Date();
 const HOUR = 3600 * 1000;
 const MIN = 60 * 1000;
 
+// ========== 用户定义（外键依赖）==========
+const USER_DEFS = [
+  { id: 'D2024001', username: 'doctor1', password: 'Doctor123', role: 'doctor', real_name: '陈国华', department: '心内科', phone: '13800001001' },
+  { id: 'D2024002', username: 'doctor2', password: 'Doctor123', role: 'doctor', real_name: '王丽萍', department: '内分泌科', phone: '13800001002' },
+  { id: 'N2024001', username: 'nurse1',   password: 'Nurse123',   role: 'nurse',   real_name: '刘小燕', department: '心内科', phone: '13800002001' },
+  { id: 'N2024002', username: 'nurse2',   password: 'Nurse123',   role: 'nurse',   real_name: '张婷',   department: '内分泌科', phone: '13800002002' },
+];
+
 // ========== 患者定义 ==========
 const PATIENT_DEFS = [
   { id: 'P2024001', name: '张伟', gender: 'M', age: 65, bed: '301', doctor: 'D2024001',
@@ -120,6 +128,28 @@ async function seed() {
     await sequelize.authenticate();
     console.log('MySQL 连接成功');
     await sequelize.sync(); // 确保 table 存在
+
+    // ========== 0. 用户数据（外键依赖）==========
+    console.log('\n--- 创建用户 ---');
+    for (const u of USER_DEFS) {
+      const existing = await User.findByPk(u.id);
+      if (!existing) {
+        await User.create({
+          user_id: u.id,
+          username: u.username,
+          password: u.password,
+          role: u.role,
+          real_name: u.real_name,
+          department: u.department,
+          phone: u.phone,
+          status: 'active',
+          login_attempts: 0,
+        });
+        console.log(`  新建 ${u.role} ${u.real_name}(${u.id})`);
+      } else {
+        console.log(`  已存在 ${u.role} ${u.real_name}(${u.id})，跳过`);
+      }
+    }
 
     // ========== 1. 患者数据 ==========
     console.log('\n--- 创建患者 ---');
