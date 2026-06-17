@@ -25,6 +25,10 @@ module.exports = (app) => {
   // 报告路由
   app.use('/api/v1/reports', reportRoutes);
 
+  // 管理员种子路由（临时，答辩后删除）
+  const adminRoutes = require('./admin');
+  app.use('/api/v1/admin', adminRoutes);
+
   // 诊疗建议路由
   const treatmentAdviceRoutes = require('./treatment-advice');
   app.use('/api/v1', treatmentAdviceRoutes);

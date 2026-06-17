@@ -277,13 +277,17 @@ async function seed() {
     }
 
     console.log('\n✅ 种子脚本执行完成！');
-    console.log('请重启后端服务：pm2 restart all 或 pkill -f "node.*app.js" && nohup node backend/app.js &');
 
-    process.exit(0);
+    return { patients: PATIENT_DEFS.length, vitals: vitalBatch.length, alerts: alertBatch.length, thresholds: THRESHOLD_DEFS.length };
   } catch (err) {
     console.error('❌ 种子脚本执行失败:', err.message);
-    process.exit(1);
+    throw err;
   }
 }
 
-seed();
+// CLI 直接运行时自动执行
+if (require.main === module) {
+  seed().then(() => process.exit(0)).catch(() => process.exit(1));
+}
+
+module.exports = { seed };
