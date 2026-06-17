@@ -1,45 +1,75 @@
 // 仪表盘聚合服务 — 单次请求返回监护面板全部数据
 const { patientDAO, vitalSignDAO, thresholdDAO, alertDAO } = require('../dao');
-const { Op } = require('sequelize');
+const { Op, Sequelize } = require('sequelize');
 const cacheService = require('./CacheService');
 
 const getOverview = async () => {
   return await cacheService.cacheOrFetch('dashboard:overview', async () => {
     // 1. 获取所有在院患者
     const patients = await patientDAO.findAll({ status: 'admitted' });
+    if (patients.length === 0) return { patients: [], total: 0 };
+
+    const patientIds = patients.map(p => p.patient_id);
 
     // 2. 获取所有患者的阈值配置
     const allThresholds = await thresholdDAO.Model.findAll({
+      where: { patient_id: { [Op.in]: patientIds } },
       attributes: ['patient_id', 'pulse_min', 'pulse_max', 'temperature_min', 'temperature_max',
         'bp_systolic_min', 'bp_systolic_max', 'bp_diastolic_min', 'bp_diastolic_max', 'ecg_rules']
     });
     const thresholdMap = {};
     allThresholds.forEach(t => { thresholdMap[t.patient_id] = t; });
 
-    // 3. 获取昨天零点之后的体征数据（用于趋势）
+    // 3. 最新体征：每个患者取 collect_time 最大的一条（不限时间）
+    const { VitalSign } = require('../models');
+    const sequelize = VitalSign.sequelize;
+    const latestRows = await VitalSign.findAll({
+      attributes: [
+        'patient_id',
+        [sequelize.fn('MAX', sequelize.col('collect_time')), 'max_time']
+      ],
+      where: { patient_id: { [Op.in]: patientIds } },
+      group: ['patient_id'],
+      raw: true
+    });
+
+    // 按 (patient_id, max_time) 批量取最新体征记录
+    const latestVitalMap = {};
+    if (latestRows.length > 0) {
+      const orConditions = latestRows.map(r => ({
+        patient_id: r.patient_id,
+        collect_time: r.max_time
+      }));
+      const latestRecords = await VitalSign.findAll({
+        where: { [Op.or]: orConditions }
+      });
+      latestRecords.forEach(r => { latestVitalMap[r.patient_id] = r; });
+    }
+
+    // 4. 24h趋势数据
     const startTime = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const allVitals = await vitalSignDAO.findAll(
-      { collect_time: { [Op.gte]: startTime } },
+    const recentVitals = await vitalSignDAO.findAll(
+      { patient_id: { [Op.in]: patientIds }, collect_time: { [Op.gte]: startTime } },
       { order: [['collect_time', 'ASC']] }
     );
 
-    // 按患者分组体征数据
-    const vitalsByPatient = {};
-    allVitals.forEach(v => {
-      if (!vitalsByPatient[v.patient_id]) vitalsByPatient[v.patient_id] = [];
-      vitalsByPatient[v.patient_id].push(v);
+    const trendByPatient = {};
+    recentVitals.forEach(v => {
+      if (!trendByPatient[v.patient_id]) trendByPatient[v.patient_id] = [];
+      trendByPatient[v.patient_id].push(v);
     });
 
-    // 4. 获取活跃报警（待处理/已确认/已升级）
+    // 5. 获取活跃报警
     const activeAlerts = await alertDAO.findAll({
+      patient_id: { [Op.in]: patientIds },
       status: { [Op.in]: ['待处理', '已确认', '已升级'] }
     });
     const alertPatientIds = new Set(activeAlerts.map(a => a.patient_id));
 
-    // 5. 组装每个患者卡片的完整数据
+    // 6. 组装每个患者卡片的完整数据
     const cards = patients.map(patient => {
-      const vitals = vitalsByPatient[patient.patient_id] || [];
-      const latestVital = vitals.length > 0 ? vitals[vitals.length - 1] : null;
+      const latestVital = latestVitalMap[patient.patient_id] || null;
+      const vitals = trendByPatient[patient.patient_id] || [];
       const threshold = thresholdMap[patient.patient_id] || null;
       const hasActiveAlert = alertPatientIds.has(patient.patient_id);
 
@@ -57,7 +87,7 @@ const getOverview = async () => {
         trendData.timestamps.push(v.collect_time);
       });
 
-      // 阈值比对
+      // 阈值比对（基于最新体征）
       let pulseAbnormal = false, tempAbnormal = false, bpAbnormal = false, ecgAbnormal = false;
       if (latestVital && threshold) {
         if (threshold.pulse_min != null) {
