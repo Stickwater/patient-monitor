@@ -25,9 +25,9 @@ module.exports = (app) => {
   // 报告路由
   app.use('/api/v1/reports', reportRoutes);
 
-  // 管理员种子路由（临时，答辩后删除）
-  const adminRoutes = require('./admin');
-  app.use('/api/v1/admin', adminRoutes);
+  // 仪表盘路由
+  const dashboardRoutes = require('./dashboard');
+  app.use('/api/v1/dashboard', dashboardRoutes);
 
   // 诊疗建议路由
   const treatmentAdviceRoutes = require('./treatment-advice');

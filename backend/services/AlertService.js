@@ -314,7 +314,7 @@ const escalateAlert = async (alertId) => {
   };
 };
 
-// 获取待处理报警统计
+// 获取待处理报警统计（强制返回四类状态，缺失的补0）
 const getAlertStats = async () => {
   return await cacheService.cacheOrFetch('alert:stats:summary', async () => {
     const stats = await alertDAO.Model.findAll({
@@ -328,13 +328,19 @@ const getAlertStats = async () => {
     const total = stats.reduce((sum, s) => sum + parseInt(s.get('count')), 0);
     const pendingCount = stats.find(s => s.status === '待处理')?.get('count') || 0;
 
+    const allStatuses = ['待处理', '已确认', '已升级', '已解除'];
+    const statusCountMap = {};
+    stats.forEach(s => { statusCountMap[s.status] = parseInt(s.get('count')); });
+
+    const byStatus = allStatuses.map(status => ({
+      status,
+      count: statusCountMap[status] || 0
+    }));
+
     return {
       total,
       pendingCount: parseInt(pendingCount),
-      byStatus: stats.map(s => ({
-        status: s.status,
-        count: parseInt(s.get('count'))
-      }))
+      byStatus
     };
   }, 30); // TTL 30 秒
 };

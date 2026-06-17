@@ -6,6 +6,7 @@ const alertService = require('./AlertService');
 const thresholdService = require('./ThresholdService');
 const reportService = require('./ReportService');
 const treatmentAdviceService = require('./TreatmentAdviceService');
+const dashboardService = require('./DashboardService');
 
 module.exports = {
   authService,
@@ -14,5 +15,6 @@ module.exports = {
   alertService,
   thresholdService,
   reportService,
-  treatmentAdviceService
+  treatmentAdviceService,
+  dashboardService
 };

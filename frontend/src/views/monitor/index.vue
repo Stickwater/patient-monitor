@@ -169,10 +169,9 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { getPatients, getLatestVital } from '@/api/patient'
-import { getAlertStats, getAlerts } from '@/api/alert'
+import { getDashboardOverview } from '@/api/dashboard'
+import { getAlertStats } from '@/api/alert'
 import { getTrendData } from '@/api/vital'
-import { getThreshold } from '@/api/threshold'
 import { useUserStore } from '@/stores/user'
 import WebSocketClient from '@/utils/websocket'
 import { ElMessage } from 'element-plus'
@@ -201,69 +200,33 @@ const filteredPatients = computed(() => {
   return patients.value.filter(p => p.hasAlert)
 })
 
+// 组装前端需要的字段（映射 dashboard API 返回的字段名到模板使用的字段名）
+const mapDashboardCard = (card) => ({
+  patient_id: card.patientId,
+  name: card.name,
+  bed_number: card.bedNumber,
+  age: card.age,
+  gender: card.gender,
+  admission_date: card.admissionDate,
+  attending_doctor_id: card.attendingDoctorId,
+  latestVital: card.latestVital,
+  pulseTrend: (card.trendData?.pulse || []).slice(-20),
+  thresholdInfo: card.thresholdInfo,
+  hasAlert: card.hasAlert,
+  hasActiveAlertRecord: card.hasActiveAlertRecord,
+  pulseAbnormal: card.abnormalIndicators?.pulseAbnormal || false,
+  tempAbnormal: card.abnormalIndicators?.tempAbnormal || false,
+  bpAbnormal: card.abnormalIndicators?.bpAbnormal || false,
+  ecgAbnormal: card.abnormalIndicators?.ecgAbnormal || false
+})
+
 const loadPatients = async () => {
   try {
-    const res = await getPatients({ status: 'admitted', size: 100 })
-    const list = res.data.list || []
-
-    // 只获取【活跃报警】患者ID：待处理/已确认/已升级（已解除的历史记录不纳入实时判定）
-    let alertPatientIds = new Set()
-    try {
-      const [r1, r2, r3] = await Promise.all([
-        getAlerts({ status: '待处理', size: 200 }),
-        getAlerts({ status: '已确认', size: 200 }),
-        getAlerts({ status: '已升级', size: 200 })
-      ])
-      ;[...(r1.data.list || []), ...(r2.data.list || []), ...(r3.data.list || [])]
-        .forEach(a => { if (a.patientId) alertPatientIds.add(a.patientId) })
-    } catch {}
-
-    // 并行加载每个患者的最新体征和24小时趋势
-    await Promise.all(list.map(async (patient) => {
-      try {
-        const [vitalRes, trendRes] = await Promise.all([
-          getLatestVital(patient.patient_id),
-          getTrendData(patient.patient_id, { hours: 24 })
-        ])
-        patient.latestVital = vitalRes.data.latestVital || null
-        const trend = trendRes.data.trendData || {}
-        patient.pulseTrend = (trend.pulse || []).slice(-20)
-
-        // 阈值比对确定具体异常指标（所有人统一比对）
-        let hasAlertFromThreshold = false
-        if (patient.latestVital) {
-          try {
-            const thresholdRes = await getThreshold(patient.patient_id).catch(() => null)
-            if (thresholdRes?.data) {
-              const t = thresholdRes.data
-              patient.thresholdInfo = t
-              patient.pulseAbnormal = t.pulse_min != null && (patient.latestVital.pulse < t.pulse_min || patient.latestVital.pulse > t.pulse_max)
-              patient.tempAbnormal = t.temperature_min != null && (patient.latestVital.temperature < t.temperature_min || patient.latestVital.temperature > t.temperature_max)
-              const bp = patient.latestVital.blood_pressure?.split('/')
-              const sysAbnormal = bp && t.bp_systolic_min != null && (parseInt(bp[0]) < t.bp_systolic_min || parseInt(bp[0]) > t.bp_systolic_max)
-              const diaAbnormal = bp && t.bp_diastolic_min != null && (parseInt(bp[1]) < t.bp_diastolic_min || parseInt(bp[1]) > t.bp_diastolic_max)
-              patient.bpAbnormal = !!(sysAbnormal || diaAbnormal)
-              patient.ecgAbnormal = patient.latestVital?.ecg && t.ecg_rules && t.ecg_rules.length > 0 && patient.latestVital.ecg !== '正常'
-              hasAlertFromThreshold = patient.pulseAbnormal || patient.tempAbnormal || patient.bpAbnormal || patient.ecgAbnormal
-            }
-          } catch {}
-        }
-
-        // 实时面板异常状态只看【当前体征是否超阈值】，不直接被报警流程记录绑架
-        patient.hasAlert = hasAlertFromThreshold
-
-        // 额外标记是否有活跃报警记录（用于显示流程提醒）
-        patient.hasActiveAlertRecord = alertPatientIds.has(patient.patient_id)
-      } catch {
-        patient.latestVital = null
-        patient.hasAlert = false
-        patient.pulseTrend = []
-      }
-    }))
-
-    patients.value = list
+    const res = await getDashboardOverview()
+    const cards = res.data.patients || []
+    patients.value = cards.map(mapDashboardCard)
   } catch (error) {
-    ElMessage.error('加载患者数据失败')
+    ElMessage.error('加载监护面板失败')
   }
 }
 
@@ -279,7 +242,6 @@ const loadAlertStats = async () => {
 const showDetail = (patient) => {
   currentPatient.value = patient
   detailVisible.value = true
-  // 图表在 @opened 事件中加载（dialog完全渲染后）
 }
 
 const onDialogOpened = async () => {
@@ -295,22 +257,21 @@ const loadTrendChart = async (patientId) => {
   try {
     const res = await getTrendData(patientId, { hours: 24 })
     const { pulse, temperature, bloodPressure, timestamps } = res.data.trendData || {}
-    
+
     if (!chartRef.value) return
-    
-    // 销毁旧图表实例
+
     if (chart) {
       chart.dispose()
       chart = null
     }
-    
+
     chart = echarts.init(chartRef.value)
-    
+
     const timeLabels = (timestamps && timestamps.length) ? timestamps.map(t => {
       const d = new Date(t)
       return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0')
     }) : []
-    
+
     const systolicData = []
     const diastolicData = []
     if (bloodPressure && bloodPressure.length) {
@@ -321,7 +282,7 @@ const loadTrendChart = async (patientId) => {
         diastolicData.push(parts[1] ? parseInt(parts[1]) : null)
       })
     }
-    
+
     chart.setOption({
       tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
       legend: { data: ['脉搏', '体温', '收缩压', '舒张压'], top: 0 },
@@ -378,21 +339,18 @@ onMounted(() => {
   loadPatients()
   loadAlertStats()
   refreshTimer = setInterval(loadPatients, 30000)
-  
-  // WebSocket实时更新
+
   if (userStore.isNurse || userStore.isDoctor) {
     ws = new WebSocketClient({
       token: userStore.token,
       onMessage: (data) => {
         if (data.type === 'VITAL_UPDATE') {
-          // 实时体征数据更新对应患者卡片
           const patient = patients.value.find(p => p.patient_id === data.patientId)
           if (patient && data.vital) {
             patient.latestVital = data.vital
           }
         }
         if (data.type === 'ALERT') {
-          // 收到新报警时刷新面板
           loadPatients()
           loadAlertStats()
         }
@@ -405,6 +363,7 @@ onUnmounted(() => {
   if (refreshTimer) clearInterval(refreshTimer)
   ws?.close()
 })
+</script>
 </script>
 
 <style scoped>
