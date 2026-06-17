@@ -364,7 +364,6 @@ onUnmounted(() => {
   ws?.close()
 })
 </script>
-</script>
 
 <style scoped>
 .monitor-container { padding: 0; max-width: 1400px; margin: 0 auto; }
